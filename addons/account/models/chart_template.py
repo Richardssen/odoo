@@ -12,11 +12,20 @@ def migrate_set_tags_and_taxes_updatable(cr, registry, module):
     that need migration (for example in case of VAT report improvements)
     '''
     env = api.Environment(cr, SUPERUSER_ID, {})
-    xml_record_ids = env['ir.model.data'].search([
-        ('model', 'in', ['account.tax.template', 'account.account.tag']),
-        ('module', 'like', module)
-    ]).ids
-    if xml_record_ids:
+    if (
+        xml_record_ids := env['ir.model.data']
+        .search(
+            [
+                (
+                    'model',
+                    'in',
+                    ['account.tax.template', 'account.account.tag'],
+                ),
+                ('module', 'like', module),
+            ]
+        )
+        .ids
+    ):
         cr.execute("update ir_model_data set noupdate = 'f' where id in %s", (tuple(xml_record_ids),))
 
 def migrate_tags_on_taxes(cr, registry):
@@ -75,7 +84,7 @@ class AccountAccountTemplate(models.Model):
         for record in self:
             name = record.name
             if record.code:
-                name = record.code + ' ' + name
+                name = f'{record.code} {name}'
             res.append((record.id, name))
         return res
 
@@ -141,8 +150,9 @@ class AccountChartTemplate(models.Model):
         # Add action to open wizard to select between several templates
         if not self.company_id.chart_template_id:
             todo = self.env['ir.actions.todo']
-            action_rec = self.env['ir.model.data'].xmlid_to_object('account.action_wizard_multi_chart')
-            if action_rec:
+            if action_rec := self.env['ir.model.data'].xmlid_to_object(
+                'account.action_wizard_multi_chart'
+            ):
                 todo.create({'action_id': action_rec.id, 'name': _('Choose Accounting Template'), 'type': 'automatic'})
         return True
 
@@ -224,8 +234,11 @@ class AccountChartTemplate(models.Model):
         ]
         for record in todo_list:
             account = getattr(self, record[0])
-            value = account and 'account.account,' + str(acc_template_ref[account.id]) or False
-            if value:
+            if (
+                value := account
+                and f'account.account,{str(acc_template_ref[account.id])}'
+                or False
+            ):
                 field = self.env['ir.model.fields'].search([('name', '=', record[0]), ('model', '=', record[1]), ('relation', '=', record[2])], limit=1)
                 vals = {
                     'name': record[0],
@@ -233,8 +246,9 @@ class AccountChartTemplate(models.Model):
                     'fields_id': field.id,
                     'value': value,
                 }
-                properties = PropertyObj.search([('name', '=', record[0]), ('company_id', '=', company.id)])
-                if properties:
+                if properties := PropertyObj.search(
+                    [('name', '=', record[0]), ('company_id', '=', company.id)]
+                ):
                     #the property exist: modify it
                     properties.write(vals)
                 else:
@@ -247,8 +261,7 @@ class AccountChartTemplate(models.Model):
         ]
         for stock_property in stock_properties:
             account = getattr(self, stock_property)
-            value = account and acc_template_ref[account.id] or False
-            if value:
+            if value := account and acc_template_ref[account.id] or False:
                 company.write({stock_property: value})
         return True
 
@@ -347,7 +360,7 @@ class AccountChartTemplate(models.Model):
         # xmlid is the concatenation of company_id and template_xml_id
         ir_model_data = self.env['ir.model.data']
         template_xmlid = ir_model_data.search([('model', '=', template._name), ('res_id', '=', template.id)])
-        new_xml_id = str(company.id)+'_'+template_xmlid.name
+        new_xml_id = f'{str(company.id)}_{template_xmlid.name}'
         return ir_model_data._update(model, template_xmlid.module, vals, xml_id=new_xml_id, store=True, noupdate=True, mode='init', res_id=False)
 
     @api.multi
@@ -365,10 +378,7 @@ class AccountChartTemplate(models.Model):
         account_tmpl_obj = self.env['account.account.template']
         acc_template = account_tmpl_obj.search([('nocreate', '!=', True), ('chart_template_id', '=', self.id)], order='id')
         for account_template in acc_template:
-            tax_ids = []
-            for tax in account_template.tax_ids:
-                tax_ids.append(tax_template_ref[tax.id])
-
+            tax_ids = [tax_template_ref[tax.id] for tax in account_template.tax_ids]
             code_main = account_template.code and len(account_template.code) or 0
             code_acc = account_template.code or ''
             if code_main > 0 and code_main <= code_digits:
@@ -533,10 +543,12 @@ class AccountTaxTemplate(models.Model):
         tax_template_to_tax = {}
         for tax in self:
             # Compute children tax ids
-            children_ids = []
-            for child_tax in tax.children_tax_ids:
-                if tax_template_to_tax.get(child_tax.id):
-                    children_ids.append(tax_template_to_tax[child_tax.id])
+            children_ids = [
+                tax_template_to_tax[child_tax.id]
+                for child_tax in tax.children_tax_ids
+                if tax_template_to_tax.get(child_tax.id)
+            ]
+
             vals_tax = tax._get_tax_vals(company)
             vals_tax['children_tax_ids'] = children_ids and [(6, 0, children_ids)] or []
             new_tax = self.env['account.chart.template'].create_record_with_xmlid(company, tax, 'account.tax', vals_tax)
@@ -688,19 +700,24 @@ class WizardMultiChartsAccounts(models.TransientModel):
         if 'company_id' in fields:
             res.update({'company_id': self.env.user.company_id.id})
         if 'currency_id' in fields:
-            company_id = res.get('company_id') or False
-            if company_id:
+            if company_id := res.get('company_id') or False:
                 company = self.env['res.company'].browse(company_id)
                 currency_id = company.on_change_country(company.country_id.id)['value']['currency_id']
                 res.update({'currency_id': currency_id})
 
-        chart_templates = account_chart_template.search([('visible', '=', True)])
-        if chart_templates:
+        if chart_templates := account_chart_template.search(
+            [('visible', '=', True)]
+        ):
             #in order to set default chart which was last created set max of ids.
             chart_id = max(chart_templates.ids)
             if context.get("default_charts"):
-                model_data = self.env['ir.model.data'].search_read([('model', '=', 'account.chart.template'), ('module', '=', context.get("default_charts"))], ['res_id'])
-                if model_data:
+                if model_data := self.env['ir.model.data'].search_read(
+                    [
+                        ('model', '=', 'account.chart.template'),
+                        ('module', '=', context.get("default_charts")),
+                    ],
+                    ['res_id'],
+                ):
                     chart_id = model_data[0]['res_id']
             chart = account_chart_template.browse(chart_id)
             chart_hierarchy_ids = self._get_chart_parent_ids(chart)

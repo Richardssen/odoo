@@ -28,80 +28,135 @@ class TestAccountBudgetCommon(AccountingTestCase):
             'account_ids': [(6, None, account_ids)],
         })
 
-        self.env['crossovered.budget.lines'].create({
-            'analytic_account_id': self.ref('analytic.analytic_partners_camp_to_camp'),
-            'general_budget_id': self.account_budget_post_sales0.id,
-            'date_from': str(time.localtime(time.time())[0] + 1) + '-01-01',
-            'date_to': str(time.localtime(time.time())[0] + 1) + '-01-31',
-            'planned_amount': 500.0,
-            'crossovered_budget_id': self.ref('account_budget.crossovered_budget_budgetpessimistic0'),
-        })
-        self.env['crossovered.budget.lines'].create({
-            'analytic_account_id': self.ref('analytic.analytic_partners_camp_to_camp'),
-            'general_budget_id': self.account_budget_post_sales0.id,
-            'date_from': str(time.localtime(time.time())[0] + 1) + '-02-07',
-            'date_to': str(time.localtime(time.time())[0] + 1) + '-02-28',
-            'planned_amount': 900.0,
-            'crossovered_budget_id': self.ref('account_budget.crossovered_budget_budgetoptimistic0'),
-        })
-        self.env['crossovered.budget.lines'].create({
-            'analytic_account_id': self.ref('analytic.analytic_partners_camp_to_camp'),
-            'general_budget_id': self.account_budget_post_sales0.id,
-            'date_from': str(time.localtime(time.time())[0] + 1) + '-03-01',
-            'date_to': str(time.localtime(time.time())[0] + 1) + '-03-15',
-            'planned_amount': 300.0,
-            'crossovered_budget_id': self.ref('account_budget.crossovered_budget_budgetoptimistic0'),
-        })
-        self.env['crossovered.budget.lines'].create({
-            'analytic_account_id': self.ref('analytic.analytic_our_super_product'),
-            'general_budget_id': self.account_budget_post_sales0.id,
-            'date_from': str(time.localtime(time.time())[0] + 1) + '-03-16',
-            'paid_date': str(time.localtime(time.time())[0] + 1) + '-12-03',
-            'date_to': str(time.localtime(time.time())[0] + 1) + '-03-31',
-            'planned_amount': 375.0,
-            'crossovered_budget_id': self.ref('account_budget.crossovered_budget_budgetpessimistic0'),
-        })
-        self.env['crossovered.budget.lines'].create({
-            'analytic_account_id': self.ref('analytic.analytic_our_super_product'),
-            'general_budget_id': self.account_budget_post_sales0.id,
-            'date_from': str(time.localtime(time.time())[0] + 1) + '-05-01',
-            'paid_date': str(time.localtime(time.time())[0] + 1) + '-12-03',
-            'date_to': str(time.localtime(time.time())[0] + 1) + '-05-31',
-            'planned_amount': 375.0,
-            'crossovered_budget_id': self.ref('account_budget.crossovered_budget_budgetoptimistic0'),
-        })
-        self.env['crossovered.budget.lines'].create({
-            'analytic_account_id': self.ref('analytic.analytic_seagate_p2'),
-            'general_budget_id': self.account_budget_post_sales0.id,
-            'date_from': str(time.localtime(time.time())[0] + 1) + '-07-16',
-            'date_to': str(time.localtime(time.time())[0] + 1) + '-07-31',
-            'planned_amount': 20000.0,
-            'crossovered_budget_id': self.ref('account_budget.crossovered_budget_budgetpessimistic0'),
-        })
-        self.env['crossovered.budget.lines'].create({
-            'analytic_account_id': self.ref('analytic.analytic_seagate_p2'),
-            'general_budget_id': self.account_budget_post_sales0.id,
-            'date_from': str(time.localtime(time.time())[0] + 1) + '-02-01',
-            'date_to': str(time.localtime(time.time())[0] + 1) + '-02-28',
-            'planned_amount': 20000.0,
-            'crossovered_budget_id': self.ref('account_budget.crossovered_budget_budgetoptimistic0'),
-        })
-        self.env['crossovered.budget.lines'].create({
-            'analytic_account_id': self.ref('analytic.analytic_seagate_p2'),
-            'general_budget_id': self.account_budget_post_sales0.id,
-            'date_from': str(time.localtime(time.time())[0] + 1) + '-09-16',
-            'date_to': str(time.localtime(time.time())[0] + 1) + '-09-30',
-            'planned_amount': 10000.0,
-            'crossovered_budget_id': self.ref('account_budget.crossovered_budget_budgetpessimistic0'),
-        })
-        self.env['crossovered.budget.lines'].create({
-            'analytic_account_id': self.ref('analytic.analytic_seagate_p2'),
-            'general_budget_id': self.account_budget_post_sales0.id,
-            'date_from': str(time.localtime(time.time())[0] + 1) + '-10-01',
-            'date_to': str(time.localtime(time.time())[0] + 1) + '-12-31',
-            'planned_amount': 10000.0,
-            'crossovered_budget_id': self.ref('account_budget.crossovered_budget_budgetoptimistic0'),
-        })
+        self.env['crossovered.budget.lines'].create(
+            {
+                'analytic_account_id': self.ref(
+                    'analytic.analytic_partners_camp_to_camp'
+                ),
+                'general_budget_id': self.account_budget_post_sales0.id,
+                'date_from': f'{str(time.localtime(time.time())[0] + 1)}-01-01',
+                'date_to': f'{str(time.localtime(time.time())[0] + 1)}-01-31',
+                'planned_amount': 500.0,
+                'crossovered_budget_id': self.ref(
+                    'account_budget.crossovered_budget_budgetpessimistic0'
+                ),
+            }
+        )
+
+        self.env['crossovered.budget.lines'].create(
+            {
+                'analytic_account_id': self.ref(
+                    'analytic.analytic_partners_camp_to_camp'
+                ),
+                'general_budget_id': self.account_budget_post_sales0.id,
+                'date_from': f'{str(time.localtime(time.time())[0] + 1)}-02-07',
+                'date_to': f'{str(time.localtime(time.time())[0] + 1)}-02-28',
+                'planned_amount': 900.0,
+                'crossovered_budget_id': self.ref(
+                    'account_budget.crossovered_budget_budgetoptimistic0'
+                ),
+            }
+        )
+
+        self.env['crossovered.budget.lines'].create(
+            {
+                'analytic_account_id': self.ref(
+                    'analytic.analytic_partners_camp_to_camp'
+                ),
+                'general_budget_id': self.account_budget_post_sales0.id,
+                'date_from': f'{str(time.localtime(time.time())[0] + 1)}-03-01',
+                'date_to': f'{str(time.localtime(time.time())[0] + 1)}-03-15',
+                'planned_amount': 300.0,
+                'crossovered_budget_id': self.ref(
+                    'account_budget.crossovered_budget_budgetoptimistic0'
+                ),
+            }
+        )
+
+        self.env['crossovered.budget.lines'].create(
+            {
+                'analytic_account_id': self.ref(
+                    'analytic.analytic_our_super_product'
+                ),
+                'general_budget_id': self.account_budget_post_sales0.id,
+                'date_from': f'{str(time.localtime(time.time())[0] + 1)}-03-16',
+                'paid_date': f'{str(time.localtime(time.time())[0] + 1)}-12-03',
+                'date_to': f'{str(time.localtime(time.time())[0] + 1)}-03-31',
+                'planned_amount': 375.0,
+                'crossovered_budget_id': self.ref(
+                    'account_budget.crossovered_budget_budgetpessimistic0'
+                ),
+            }
+        )
+
+        self.env['crossovered.budget.lines'].create(
+            {
+                'analytic_account_id': self.ref(
+                    'analytic.analytic_our_super_product'
+                ),
+                'general_budget_id': self.account_budget_post_sales0.id,
+                'date_from': f'{str(time.localtime(time.time())[0] + 1)}-05-01',
+                'paid_date': f'{str(time.localtime(time.time())[0] + 1)}-12-03',
+                'date_to': f'{str(time.localtime(time.time())[0] + 1)}-05-31',
+                'planned_amount': 375.0,
+                'crossovered_budget_id': self.ref(
+                    'account_budget.crossovered_budget_budgetoptimistic0'
+                ),
+            }
+        )
+
+        self.env['crossovered.budget.lines'].create(
+            {
+                'analytic_account_id': self.ref('analytic.analytic_seagate_p2'),
+                'general_budget_id': self.account_budget_post_sales0.id,
+                'date_from': f'{str(time.localtime(time.time())[0] + 1)}-07-16',
+                'date_to': f'{str(time.localtime(time.time())[0] + 1)}-07-31',
+                'planned_amount': 20000.0,
+                'crossovered_budget_id': self.ref(
+                    'account_budget.crossovered_budget_budgetpessimistic0'
+                ),
+            }
+        )
+
+        self.env['crossovered.budget.lines'].create(
+            {
+                'analytic_account_id': self.ref('analytic.analytic_seagate_p2'),
+                'general_budget_id': self.account_budget_post_sales0.id,
+                'date_from': f'{str(time.localtime(time.time())[0] + 1)}-02-01',
+                'date_to': f'{str(time.localtime(time.time())[0] + 1)}-02-28',
+                'planned_amount': 20000.0,
+                'crossovered_budget_id': self.ref(
+                    'account_budget.crossovered_budget_budgetoptimistic0'
+                ),
+            }
+        )
+
+        self.env['crossovered.budget.lines'].create(
+            {
+                'analytic_account_id': self.ref('analytic.analytic_seagate_p2'),
+                'general_budget_id': self.account_budget_post_sales0.id,
+                'date_from': f'{str(time.localtime(time.time())[0] + 1)}-09-16',
+                'date_to': f'{str(time.localtime(time.time())[0] + 1)}-09-30',
+                'planned_amount': 10000.0,
+                'crossovered_budget_id': self.ref(
+                    'account_budget.crossovered_budget_budgetpessimistic0'
+                ),
+            }
+        )
+
+        self.env['crossovered.budget.lines'].create(
+            {
+                'analytic_account_id': self.ref('analytic.analytic_seagate_p2'),
+                'general_budget_id': self.account_budget_post_sales0.id,
+                'date_from': f'{str(time.localtime(time.time())[0] + 1)}-10-01',
+                'date_to': f'{str(time.localtime(time.time())[0] + 1)}-12-31',
+                'planned_amount': 10000.0,
+                'crossovered_budget_id': self.ref(
+                    'account_budget.crossovered_budget_budgetoptimistic0'
+                ),
+            }
+        )
+
 
         account_ids = self.env['account.account'].search([
             ('user_type_id.name', '=', 'Expenses'),

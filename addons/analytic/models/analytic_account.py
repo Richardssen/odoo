@@ -27,7 +27,7 @@ class AccountAnalyticAccount(models.Model):
             domain.append(('date', '<=', self._context['to_date']))
 
         account_amounts = analytic_line_obj.search_read(domain, ['account_id', 'amount'])
-        account_ids = set([line['account_id'][0] for line in account_amounts])
+        account_ids = {line['account_id'][0] for line in account_amounts}
         data_debit = {account_id: 0.0 for account_id in account_ids}
         data_credit = {account_id: 0.0 for account_id in account_ids}
         for account_amount in account_amounts:
@@ -65,9 +65,9 @@ class AccountAnalyticAccount(models.Model):
         for analytic in self:
             name = analytic.name
             if analytic.code:
-                name = '['+analytic.code+'] '+name
+                name = f'[{analytic.code}] {name}'
             if analytic.partner_id:
-                name = name +' - '+analytic.partner_id.commercial_partner_id.name
+                name = f'{name} - {analytic.partner_id.commercial_partner_id.name}'
             res.append((analytic.id, name))
         return res
 
@@ -77,8 +77,9 @@ class AccountAnalyticAccount(models.Model):
             return super(AccountAnalyticAccount, self).name_search(name, args, operator, limit)
         args = args or []
         domain = ['|', ('code', operator, name), ('name', operator, name)]
-        partners = self.env['res.partner'].search([('name', operator, name)], limit=limit)
-        if partners:
+        if partners := self.env['res.partner'].search(
+            [('name', operator, name)], limit=limit
+        ):
             domain = ['|'] + domain + [('partner_id', 'in', partners.ids)]
         recs = self.search(domain + args, limit=limit)
         return recs.name_get()

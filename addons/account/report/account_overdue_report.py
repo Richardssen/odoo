@@ -44,7 +44,10 @@ class ReportOverdue(models.AbstractModel):
                 currency = line['currency_id'] and self.env['res.currency'].browse(line['currency_id']) or company_currency
                 if currency not in lines_to_display[partner_id]:
                     lines_to_display[partner_id][currency] = []
-                    totals[partner_id][currency] = dict((fn, 0.0) for fn in ['due', 'paid', 'mat', 'total'])
+                    totals[partner_id][currency] = {
+                        fn: 0.0 for fn in ['due', 'paid', 'mat', 'total']
+                    }
+
                 if line['debit'] and line['currency_id']:
                     line['debit'] = line['amount_currency']
                 if line['credit'] and line['currency_id']:

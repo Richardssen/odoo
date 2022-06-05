@@ -69,9 +69,10 @@ class AccountFiscalPosition(models.Model):
     def map_accounts(self, accounts):
         """ Receive a dictionary having accounts in values and try to replace those accounts accordingly to the fiscal position.
         """
-        ref_dict = {}
-        for line in self.account_ids:
-            ref_dict[line.account_src_id] = line.account_dest_id
+        ref_dict = {
+            line.account_src_id: line.account_dest_id for line in self.account_ids
+        }
+
         for key, acc in accounts.items():
             if acc in ref_dict:
                 accounts[key] = ref_dict[acc]
@@ -141,11 +142,7 @@ class AccountFiscalPosition(models.Model):
         partner = PartnerObj.browse(partner_id)
 
         # if no delivery use invoicing
-        if delivery_id:
-            delivery = PartnerObj.browse(delivery_id)
-        else:
-            delivery = partner
-
+        delivery = PartnerObj.browse(delivery_id) if delivery_id else partner
         # partner manually set fiscal position always win
         if delivery.property_account_position_id or partner.property_account_position_id:
             return delivery.property_account_position_id.id or partner.property_account_position_id.id
@@ -229,9 +226,7 @@ class ResPartner(models.Model):
             return []
         if type(operand) not in (float, int):
             return []
-        sign = 1
-        if account_type == 'payable':
-            sign = -1
+        sign = -1 if account_type == 'payable' else 1
         res = self._cr.execute('''
             SELECT partner.id
             FROM res_partner partner
@@ -321,9 +316,11 @@ class ResPartner(models.Model):
         today = fields.Date.context_today(self)
         for partner in self:
             domain = partner.get_followup_lines_domain(today, overdue_only=True)
-            issued_total = 0
-            for aml in self.env['account.move.line'].search(domain):
-                issued_total += aml.amount_residual
+            issued_total = sum(
+                aml.amount_residual
+                for aml in self.env['account.move.line'].search(domain)
+            )
+
             partner.issued_total = issued_total
 
     @api.one

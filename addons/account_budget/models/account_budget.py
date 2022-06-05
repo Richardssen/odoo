@@ -125,24 +125,26 @@ class CrossoveredBudgetLines(models.Model):
                     elapsed_timedelta = date_to - date_from
                     if elapsed_timedelta.days > 0:
                         theo_amt = (elapsed_timedelta.total_seconds() / line_timedelta.total_seconds()) * line.planned_amount
-            else:
-                if line.paid_date:
-                    if fields.Datetime.from_string(line.date_to) <= fields.Datetime.from_string(line.paid_date):
-                        theo_amt = 0.00
-                    else:
-                        theo_amt = line.planned_amount
-                else:
-                    line_timedelta = fields.Datetime.from_string(line.date_to) - fields.Datetime.from_string(line.date_from)
-                    elapsed_timedelta = fields.Datetime.from_string(today) - (fields.Datetime.from_string(line.date_from))
+            elif line.paid_date:
+                theo_amt = (
+                    0.00
+                    if fields.Datetime.from_string(line.date_to)
+                    <= fields.Datetime.from_string(line.paid_date)
+                    else line.planned_amount
+                )
 
-                    if elapsed_timedelta.days < 0:
-                        # If the budget line has not started yet, theoretical amount should be zero
-                        theo_amt = 0.00
-                    elif line_timedelta.days > 0 and fields.Datetime.from_string(today) < fields.Datetime.from_string(line.date_to):
-                        # If today is between the budget line date_from and date_to
-                        theo_amt = (elapsed_timedelta.total_seconds() / line_timedelta.total_seconds()) * line.planned_amount
-                    else:
-                        theo_amt = line.planned_amount
+            else:
+                line_timedelta = fields.Datetime.from_string(line.date_to) - fields.Datetime.from_string(line.date_from)
+                elapsed_timedelta = fields.Datetime.from_string(today) - (fields.Datetime.from_string(line.date_from))
+
+                if elapsed_timedelta.days < 0:
+                    # If the budget line has not started yet, theoretical amount should be zero
+                    theo_amt = 0.00
+                elif line_timedelta.days > 0 and fields.Datetime.from_string(today) < fields.Datetime.from_string(line.date_to):
+                    # If today is between the budget line date_from and date_to
+                    theo_amt = (elapsed_timedelta.total_seconds() / line_timedelta.total_seconds()) * line.planned_amount
+                else:
+                    theo_amt = line.planned_amount
 
             line.theoritical_amount = theo_amt
 

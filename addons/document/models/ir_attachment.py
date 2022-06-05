@@ -63,7 +63,7 @@ class IrAttachment(models.Model):
                 zf = zipfile.ZipFile(f)
                 zf_filelist = [x for x in zf.namelist() if x.startswith('ppt/slides/slide')]
                 for i in range(1, len(zf_filelist) + 1):
-                    content = xml.dom.minidom.parseString(zf.read('ppt/slides/slide%s.xml' % i))
+                    content = xml.dom.minidom.parseString(zf.read(f'ppt/slides/slide{i}.xml'))
                     for val in ["a:t"]:
                         for element in content.getElementsByTagName(val):
                             buf += textToString(element) + "\n"
@@ -120,8 +120,7 @@ class IrAttachment(models.Model):
     @api.model
     def _index(self, bin_data, datas_fname, mimetype):
         for ftype in FTYPES:
-            buf = getattr(self, '_index_%s' % ftype)(bin_data)
-            if buf:
+            if buf := getattr(self, f'_index_{ftype}')(bin_data):
                 return buf
 
         return super(IrAttachment, self)._index(bin_data, datas_fname, mimetype)

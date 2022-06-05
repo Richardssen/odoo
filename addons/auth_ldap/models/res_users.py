@@ -16,14 +16,12 @@ class Users(models.Model):
             return user_id
         with registry(db).cursor() as cr:
             cr.execute("SELECT id FROM res_users WHERE lower(login)=%s", (login,))
-            res = cr.fetchone()
-            if res:
+            if res := cr.fetchone():
                 return False
             env = api.Environment(cr, SUPERUSER_ID, {})
             Ldap = env['res.company.ldap']
             for conf in Ldap.get_ldap_dicts():
-                entry = Ldap.authenticate(conf, login, password)
-                if entry:
+                if entry := Ldap.authenticate(conf, login, password):
                     user_id = Ldap.get_or_create_user(conf, login, entry)
                     if user_id:
                         break

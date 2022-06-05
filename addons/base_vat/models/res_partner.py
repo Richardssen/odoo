@@ -71,7 +71,7 @@ class ResPartner(models.Model):
         '''
         if not ustr(country_code).encode('utf-8').isalpha():
             return False
-        check_func_name = 'check_vat_' + country_code
+        check_func_name = f'check_vat_{country_code}'
         check_func = getattr(self, check_func_name, None) or getattr(vatnumber, check_func_name, None)
         if not check_func:
             # No VAT validation available, default to check that the country code exists
@@ -109,7 +109,7 @@ class ResPartner(models.Model):
                 continue
             vat_country, vat_number = self._split_vat(partner.vat)
             if not check_func(vat_country, vat_number):
-                _logger.info("Importing VAT Number [%s] is not valid !" % vat_number)
+                _logger.info(f"Importing VAT Number [{vat_number}] is not valid !")
                 msg = partner._construct_constraint_msg()
                 raise ValidationError(msg)
 
@@ -156,12 +156,11 @@ class ResPartner(models.Model):
         #
         if self.__check_vat_ch_re1.match(vat):
             return True
-        match = self.__check_vat_ch_re2.match(vat)
-        if match:
+        if match := self.__check_vat_ch_re2.match(vat):
             # For new TVA numbers, do a mod11 check
             num = filter(lambda s: s.isdigit(), match.group(1))        # get the digits only
             factor = (5, 4, 3, 2, 7, 6, 5, 4)
-            csum = sum([int(num[i]) * factor[i] for i in range(8)])
+            csum = sum(int(num[i]) * factor[i] for i in range(8))
             check = (11 - (csum % 11)) % 11
             return check == int(num[8])
         return False
@@ -189,7 +188,7 @@ class ResPartner(models.Model):
             vat += ' '
         if vat[:7].isdigit():
             return vat[7] == self._ie_check_char(vat[:7] + vat[8])
-        elif vat[1] in (string.ascii_uppercase + '+*'):
+        elif vat[1] in f'{string.ascii_uppercase}+*':
             # Deprecated format
             # See http://www.revenue.ie/en/online/third-party-reporting/reporting-payment-details/faqs.html#section3
             return vat[7] == self._ie_check_char(vat[2:7] + vat[0] + vat[8])
@@ -216,10 +215,7 @@ class ResPartner(models.Model):
             return False
         try:
             ano = int(m.group('ano'))
-            if ano > 30:
-                ano = 1900 + ano
-            else:
-                ano = 2000 + ano
+            ano = 1900 + ano if ano > 30 else 2000 + ano
             datetime.date(ano, int(m.group('mes')), int(m.group('dia')))
         except ValueError:
             return False
@@ -263,7 +259,6 @@ class ResPartner(models.Model):
         elif vat_type and vat_type.upper() == 'R':
             # verify RUC
             factor = '5432765432'
-            sum = 0
             dig_check = False
             if len(vat) != 11:
                 return False
@@ -272,9 +267,7 @@ class ResPartner(models.Model):
             except ValueError:
                 return False
 
-            for f in range(0, 10):
-                sum += int(factor[f]) * int(vat[f])
-
+            sum = sum(int(factor[f]) * int(vat[f]) for f in range(10))
             subtraction = 11 - (sum % 11)
             if subtraction == 10:
                 dig_check = 0
@@ -301,30 +294,21 @@ class ResPartner(models.Model):
         if len(vat) == 10:
             sum = 0
             check = 0
-            for f in range(0, 9):
+            for f in range(9):
                 c1 = (int(vat[f]) + (9-f)) % 10
                 c2 = (c1 * (2 ** (9-f))) % 9
                 if (c1 != 0) and (c2 == 0):
                     c2 = 9
                 sum += c2
-            if sum % 10 == 0:
-                check = 0
-            else:
-                check = 10 - (sum % 10)
+            check = 0 if sum % 10 == 0 else 10 - (sum % 10)
             return int(vat[9]) == check
 
         # check personal id (tc kimlik no)
         if len(vat) == 11:
-            c1a = 0
-            c1b = 0
-            c2 = 0
-            for f in range(0, 9, 2):
-                c1a += int(vat[f])
-            for f in range(1, 9, 2):
-                c1b += int(vat[f])
+            c1a = sum(int(vat[f]) for f in range(0, 9, 2))
+            c1b = sum(int(vat[f]) for f in range(1, 9, 2))
             c1 = ((7 * c1a) - c1b) % 10
-            for f in range(0, 10):
-                c2 += int(vat[f])
+            c2 = sum(int(vat[f]) for f in range(10))
             c2 = c2 % 10
             return int(vat[9]) == c1 and int(vat[10]) == c2
 

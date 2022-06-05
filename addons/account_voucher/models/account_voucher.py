@@ -78,7 +78,13 @@ class AccountVoucher(models.Model):
     @api.one
     @api.depends('move_id.line_ids.reconciled', 'move_id.line_ids.account_id.internal_type')
     def _check_paid(self):
-        self.paid = any([((line.account_id.internal_type, 'in', ('receivable', 'payable')) and line.reconciled) for line in self.move_id.line_ids])
+        self.paid = any(
+            (
+                (line.account_id.internal_type, 'in', ('receivable', 'payable'))
+                and line.reconciled
+            )
+            for line in self.move_id.line_ids
+        )
 
     @api.model
     def _get_currency(self):
@@ -110,7 +116,7 @@ class AccountVoucher(models.Model):
             for line in voucher.line_ids:
                 tax_info = line.tax_ids.compute_all(line.price_unit, voucher.currency_id, line.quantity, line.product_id, voucher.partner_id)
                 total += tax_info.get('total_included', 0.0)
-                tax_amount += sum([t.get('amount',0.0) for t in tax_info.get('taxes', False)]) 
+                tax_amount += sum(t.get('amount',0.0) for t in tax_info.get('taxes', False))
             voucher.amount = total + voucher.tax_correction
             voucher.tax_amount = tax_amount
 
@@ -129,13 +135,12 @@ class AccountVoucher(models.Model):
             liq_journal = self.env['account.journal'].search([('type', 'in', ('bank', 'cash'))], limit=1)
             self.account_id = liq_journal.default_debit_account_id \
                 if self.voucher_type == 'sale' else liq_journal.default_credit_account_id
+        elif self.partner_id:
+            self.account_id = self.partner_id.property_account_receivable_id \
+                if self.voucher_type == 'sale' else self.partner_id.property_account_payable_id
         else:
-            if self.partner_id:
-                self.account_id = self.partner_id.property_account_receivable_id \
-                    if self.voucher_type == 'sale' else self.partner_id.property_account_payable_id
-            else:
-                self.account_id = self.journal_id.default_debit_account_id \
-                    if self.voucher_type == 'sale' else self.journal_id.default_credit_account_id
+            self.account_id = self.journal_id.default_debit_account_id \
+                if self.voucher_type == 'sale' else self.journal_id.default_credit_account_id
 
     @api.multi
     def proforma_voucher(self):
@@ -166,25 +171,28 @@ class AccountVoucher(models.Model):
             credit = self._convert_amount(self.amount)
         elif self.voucher_type == 'sale':
             debit = self._convert_amount(self.amount)
-        if debit < 0.0: debit = 0.0
-        if credit < 0.0: credit = 0.0
-        sign = debit - credit < 0 and -1 or 1
-        #set the first line of the voucher
-        move_line = {
-                'name': self.name or '/',
-                'debit': debit,
-                'credit': credit,
-                'account_id': self.account_id.id,
-                'move_id': move_id,
-                'journal_id': self.journal_id.id,
-                'partner_id': self.partner_id.id,
-                'currency_id': company_currency != current_currency and current_currency or False,
-                'amount_currency': (sign * abs(self.amount)  # amount < 0 for refunds
-                    if company_currency != current_currency else 0.0),
-                'date': self.account_date,
-                'date_maturity': self.date_due
-            }
-        return move_line
+        debit = max(debit, 0.0)
+        credit = max(credit, 0.0)
+        sign = -1 if debit - credit < 0 else 1
+        return {
+            'name': self.name or '/',
+            'debit': debit,
+            'credit': credit,
+            'account_id': self.account_id.id,
+            'move_id': move_id,
+            'journal_id': self.journal_id.id,
+            'partner_id': self.partner_id.id,
+            'currency_id': company_currency != current_currency
+            and current_currency
+            or False,
+            'amount_currency': (
+                sign * abs(self.amount)  # amount < 0 for refunds
+                if company_currency != current_currency
+                else 0.0
+            ),
+            'date': self.account_date,
+            'date_maturity': self.date_due,
+        }
 
     @api.multi
     def account_move_get(self):
@@ -197,14 +205,13 @@ class AccountVoucher(models.Model):
         else:
             raise UserError(_('Please define a sequence on the journal.'))
 
-        move = {
+        return {
             'name': name,
             'journal_id': self.journal_id.id,
             'narration': self.narration,
             'date': self.account_date,
             'ref': self.reference,
         }
-        return move
 
     @api.multi
     def _convert_amount(self, amount):
@@ -384,10 +391,9 @@ class AccountVoucherLine(models.Model):
 
         values['tax_ids'] = taxes.ids
 
-        if company and currency:
-            if company.currency_id != currency:
-                if type == 'purchase':
-                    values['price_unit'] = product.standard_price
-                values['price_unit'] = values['price_unit'] * currency.rate
+        if company and currency and company.currency_id != currency:
+            if type == 'purchase':
+                values['price_unit'] = product.standard_price
+            values['price_unit'] = values['price_unit'] * currency.rate
 
         return {'value': values, 'domain': {}}

@@ -124,14 +124,14 @@ class Lead2OpportunityPartner(models.TransientModel):
         if self.name == 'merge':
             leads = self.opportunity_ids.merge_opportunity()
             if leads.type == "lead":
-                values.update({'lead_ids': leads.ids, 'user_ids': [self.user_id.id]})
+                values |= {'lead_ids': leads.ids, 'user_ids': [self.user_id.id]}
                 self.with_context(active_ids=leads.ids)._convert_opportunity(values)
             elif not self._context.get('no_force_assignation') or not leads.user_id:
                 values['user_id'] = self.user_id.id
                 leads.write(values)
         else:
             leads = self.env['crm.lead'].browse(self._context.get('active_ids', []))
-            values.update({'lead_ids': leads.ids, 'user_ids': [self.user_id.id]})
+            values |= {'lead_ids': leads.ids, 'user_ids': [self.user_id.id]}
             self._convert_opportunity(values)
             for lead in leads:
                 if lead.partner_id and lead.partner_id.user_id != lead.user_id:
@@ -212,9 +212,7 @@ class Lead2OpportunityMassConvert(models.TransientModel):
         """
         self.ensure_one()
         salesteam_id = self.team_id.id if self.team_id else False
-        salesmen_ids = []
-        if self.user_ids:
-            salesmen_ids = self.user_ids.ids
+        salesmen_ids = self.user_ids.ids if self.user_ids else []
         vals.update({'user_ids': salesmen_ids, 'team_id': salesteam_id})
         return super(Lead2OpportunityMassConvert, self)._convert_opportunity(vals)
 

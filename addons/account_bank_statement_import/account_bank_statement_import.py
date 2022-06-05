@@ -110,11 +110,11 @@ class AccountBankStatementImport(models.TransientModel):
         if len(stmts_vals) == 0:
             raise UserError(_('This file doesn\'t contain any statement.'))
 
-        no_st_line = True
-        for vals in stmts_vals:
-            if vals['transactions'] and len(vals['transactions']) > 0:
-                no_st_line = False
-                break
+        no_st_line = not any(
+            vals['transactions'] and len(vals['transactions']) > 0
+            for vals in stmts_vals
+        )
+
         if no_st_line:
             raise UserError(_('This file doesn\'t contain any transaction.'))
 
@@ -142,13 +142,10 @@ class AccountBankStatementImport(models.TransientModel):
             # No bank account on the journal : create one from the account number of the statement
             if journal and not journal.bank_account_id:
                 journal.set_bank_account(account_number)
-            # No journal passed to the wizard : try to find one using the account number of the statement
             elif not journal:
                 journal = journal_obj.search([('bank_account_id.sanitized_acc_number', '=', sanitized_account_number)])
-            # Already a bank account on the journal : check it's the same as on the statement
-            else:
-                if not self._check_journal_bank_account(journal, sanitized_account_number):
-                    raise UserError(_('The account of this statement (%s) is not the same as the journal (%s).') % (account_number, journal.bank_account_id.acc_number))
+            elif not self._check_journal_bank_account(journal, sanitized_account_number):
+                raise UserError(_('The account of this statement (%s) is not the same as the journal (%s).') % (account_number, journal.bank_account_id.acc_number))
 
         # If importing into an existing journal, its currency must be the same as the bank statement
         if journal:
@@ -176,20 +173,29 @@ class AccountBankStatementImport(models.TransientModel):
                 st_vals['name'] = journal.sequence_id.with_context(ir_sequence_date=st_vals.get('date')).get_next_char(st_vals['number'])
                 del(st_vals['number'])
             for line_vals in st_vals['transactions']:
-                unique_import_id = line_vals.get('unique_import_id')
-                if unique_import_id:
+                if unique_import_id := line_vals.get('unique_import_id'):
                     sanitized_account_number = sanitize_account_number(account_number)
-                    line_vals['unique_import_id'] = (sanitized_account_number and sanitized_account_number + '-' or '') + str(journal.id) + '-' + unique_import_id
+                    line_vals['unique_import_id'] = (
+                        (
+                            sanitized_account_number
+                            and f'{sanitized_account_number}-'
+                            or ''
+                        )
+                        + str(journal.id)
+                        + '-'
+                        + unique_import_id
+                    )
+
 
                 if not line_vals.get('bank_account_id'):
                     # Find the partner and his bank account or create the bank account. The partner selected during the
                     # reconciliation process will be linked to the bank when the statement is closed.
                     partner_id = False
                     bank_account_id = False
-                    identifying_string = line_vals.get('account_number')
-                    if identifying_string:
-                        partner_bank = self.env['res.partner.bank'].search([('acc_number', '=', identifying_string)], limit=1)
-                        if partner_bank:
+                    if identifying_string := line_vals.get('account_number'):
+                        if partner_bank := self.env['res.partner.bank'].search(
+                            [('acc_number', '=', identifying_string)], limit=1
+                        ):
                             bank_account_id = partner_bank.id
                             partner_id = partner_bank.partner_id.id
                         else:
@@ -216,7 +222,7 @@ class AccountBankStatementImport(models.TransientModel):
                     filtered_st_lines.append(line_vals)
                 else:
                     ignored_statement_lines_import_ids.append(line_vals['unique_import_id'])
-            if len(filtered_st_lines) > 0:
+            if filtered_st_lines:
                 # Remove values that won't be used to create records
                 st_vals.pop('transactions', None)
                 for line_vals in filtered_st_lines:
@@ -224,7 +230,7 @@ class AccountBankStatementImport(models.TransientModel):
                 # Create the satement
                 st_vals['line_ids'] = [[0, False, line] for line in filtered_st_lines]
                 statement_ids.append(BankStatement.create(st_vals).id)
-        if len(statement_ids) == 0:
+        if not statement_ids:
             raise UserError(_('You have already imported that file.'))
 
         # Prepare import feedback

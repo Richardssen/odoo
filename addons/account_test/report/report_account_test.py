@@ -52,7 +52,13 @@ class ReportAssertAccount(models.AbstractModel):
         else:
             def _format(item):
                 if isinstance(item, dict):
-                    return ', '.join(["%s: %s" % (tup[0], tup[1]) for tup in order_columns(item, column_order)])
+                    return ', '.join(
+                        [
+                            f"{tup[0]}: {tup[1]}"
+                            for tup in order_columns(item, column_order)
+                        ]
+                    )
+
                 else:
                     return item
             result = [_format(rec) for rec in result]

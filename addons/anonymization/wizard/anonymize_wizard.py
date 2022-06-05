@@ -49,8 +49,7 @@ class IrModelFieldsAnonymizeWizard(models.TransientModel):
     def _get_summary_value(self):
         summary = u''
         for anon_field in self.env['ir.model.fields.anonymization'].search([('state', '!=', 'not_existing')]):
-            field = anon_field.field_id
-            if field:
+            if field := anon_field.field_id:
                 values = {
                     'model_name': field.model_id.name,
                     'model_code': field.model_id.model,
@@ -65,9 +64,7 @@ class IrModelFieldsAnonymizeWizard(models.TransientModel):
 
     @api.model
     def default_get(self, fields_list):
-        res = {}
-        res['name'] = '.pickle'
-        res['summary'] = self._get_summary_value()
+        res = {'name': '.pickle', 'summary': self._get_summary_value()}
         res['state'] = self._get_state_value()
         res['msg'] = _("Before executing the anonymization process, you should make a backup of your database.")
         return res
@@ -141,19 +138,22 @@ class IrModelFieldsAnonymizeWizard(models.TransientModel):
         state = self.env['ir.model.fields.anonymization']._get_global_state()
         error_type = _('Error !')
         if state == 'anonymized':
-            raise UserError('%s: %s' % (error_type, _("The database is currently anonymized, you cannot anonymize it again.")))
+            raise UserError(
+                f'{error_type}: {_("The database is currently anonymized, you cannot anonymize it again.")}'
+            )
+
         elif state == 'unstable':
             raise UserError('%s: %s' % (error_type, _("The database anonymization is currently in an unstable state. Some fields are anonymized,"
                                                       " while some fields are not anonymized. You should try to solve this problem before trying to do anything.")))
 
         # do the anonymization:
         dirpath = os.environ.get('HOME') or os.getcwd()
-        rel_filepath = 'field_anonymization_%s_%s.pickle' % (self.env.cr.dbname, history.id)
+        rel_filepath = f'field_anonymization_{self.env.cr.dbname}_{history.id}.pickle'
         abs_filepath = os.path.abspath(os.path.join(dirpath, rel_filepath))
 
         ano_fields = self.env['ir.model.fields.anonymization'].search([('state', '!=', 'not_existing')])
         if not ano_fields:
-            raise UserError('%s: %s' % (error_type, _("No fields are going to be anonymized.")))
+            raise UserError(f'{error_type}: {_("No fields are going to be anonymized.")}')
 
         data = []
 
@@ -164,7 +164,7 @@ class IrModelFieldsAnonymizeWizard(models.TransientModel):
             table_name = self.env[model_name]._table
 
             # get the current value
-            self.env.cr.execute("select id, %s from %s" % (field_name, table_name))
+            self.env.cr.execute(f"select id, {field_name} from {table_name}")
             for record in self.env.cr.dictfetchall():
                 data.append({"model_id": model_name, "field_id": field_name, "id": record['id'], "value": record[field_name]})
 
@@ -173,13 +173,13 @@ class IrModelFieldsAnonymizeWizard(models.TransientModel):
 
                 sid = str(record['id'])
                 if field_type == 'char':
-                    anonymized_value = 'xxx' + sid
+                    anonymized_value = f'xxx{sid}'
                 elif field_type == 'selection':
-                    anonymized_value = 'xxx' + sid
+                    anonymized_value = f'xxx{sid}'
                 elif field_type == 'text':
-                    anonymized_value = 'xxx' + sid
+                    anonymized_value = f'xxx{sid}'
                 elif field_type == 'html':
-                    anonymized_value = 'xxx' + sid
+                    anonymized_value = f'xxx{sid}'
                 elif field_type == 'boolean':
                     anonymized_value = random.choice([True, False])
                 elif field_type == 'date':
@@ -191,10 +191,13 @@ class IrModelFieldsAnonymizeWizard(models.TransientModel):
                 elif field_type == 'integer':
                     anonymized_value = 0
                 elif field_type in ['binary', 'many2many', 'many2one', 'one2many', 'reference']:  # cannot anonymize these kind of fields
-                    raise UserError('%s: %s' % (error_type, _("Cannot anonymize fields of these types: binary, many2many, many2one, one2many, reference.")))
+                    raise UserError(
+                        f'{error_type}: {_("Cannot anonymize fields of these types: binary, many2many, many2one, one2many, reference.")}'
+                    )
+
 
                 if anonymized_value is None:
-                    raise UserError('%s: %s' % (error_type, _("Anonymized value can not be empty.")))
+                    raise UserError(f'{error_type}: {_("Anonymized value can not be empty.")}')
 
                 sql = "update %(table)s set %(field)s = %%(anonymized_value)s where id = %%(id)s" % {
                     'table': table_name,
@@ -221,14 +224,11 @@ class IrModelFieldsAnonymizeWizard(models.TransientModel):
                ]
         msg = '\n'.join(msgs) % (dirpath, abs_filepath)
 
-        fn = open(abs_filepath, 'r')
-
-        self.write({
-            'msg': msg,
-            'file_export': base64.encodestring(fn.read()),
-        })
-        fn.close()
-
+        with open(abs_filepath, 'r') as fn:
+            self.write({
+                'msg': msg,
+                'file_export': base64.encodestring(fn.read()),
+            })
         # update the history record:
         history.write({
             'field_ids': [[6, 0, ano_fields.ids]],
@@ -263,7 +263,10 @@ class IrModelFieldsAnonymizeWizard(models.TransientModel):
                               " while some fields are not anonymized. You should try to solve this problem before trying to do anything."))
 
         if not self.file_import:
-            raise UserError('%s: %s' % (_('Error !'), _("It is not possible to reverse the anonymization process without supplying the anonymization export file.")))
+            raise UserError(
+                f"""{_('Error !')}: {_("It is not possible to reverse the anonymization process without supplying the anonymization export file.")}"""
+            )
+
 
         # reverse the anonymization:
         # load the pickle file content into a data structure:
@@ -280,8 +283,7 @@ class IrModelFieldsAnonymizeWizard(models.TransientModel):
 
             # check if custom sql exists:
             key = (line['model_id'], line['field_id'])
-            custom_updates = fixes.get(key)
-            if custom_updates:
+            if custom_updates := fixes.get(key):
                 custom_updates.sort(key=itemgetter('sequence'))
                 queries = [(record['query'], record['query_type']) for record in custom_updates if record['query_type']]
             elif table_name:

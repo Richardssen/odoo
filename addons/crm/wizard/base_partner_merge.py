@@ -148,11 +148,7 @@ class MergePartnerAutomatic(models.TransientModel):
             # get list of columns of current table (exept the current fk column)
             query = "SELECT column_name FROM information_schema.columns WHERE table_name LIKE '%s'" % (table)
             self._cr.execute(query, ())
-            columns = []
-            for data in self._cr.fetchall():
-                if data[0] != column:
-                    columns.append(data[0])
-
+            columns = [data[0] for data in self._cr.fetchall() if data[0] != column]
             # do the update for the current table/column in SQL
             query_dic = {
                 'table': table,
@@ -263,10 +259,7 @@ class MergePartnerAutomatic(models.TransientModel):
         model_fields = dst_partner._fields
 
         def write_serializer(item):
-            if isinstance(item, models.BaseModel):
-                return item.id
-            else:
-                return item
+            return item.id if isinstance(item, models.BaseModel) else item
         # get all fields that are not computed or x2many
         values = dict()
         for column, field in model_fields.iteritems():
@@ -306,7 +299,10 @@ class MergePartnerAutomatic(models.TransientModel):
             raise UserError(_("You cannot merge a contact with one of his parent."))
 
         # check only admin can merge partners with different emails
-        if SUPERUSER_ID != self.env.uid and len(set(partner.email for partner in partner_ids)) > 1:
+        if (
+            SUPERUSER_ID != self.env.uid
+            and len({partner.email for partner in partner_ids}) > 1
+        ):
             raise UserError(_("All contacts must have the same email. Only the Administrator can merge contacts with different emails."))
 
         # remove dst_partner from partners to merge
@@ -328,7 +324,10 @@ class MergePartnerAutomatic(models.TransientModel):
         self._update_values(src_partners, dst_partner)
 
         _logger.info('(uid = %s) merged the partners %r with %s', self._uid, src_partners.ids, dst_partner.id)
-        dst_partner.message_post(body='%s %s' % (_("Merged with the following partners:"), ", ".join('%s <%s> (ID %s)' % (p.name, p.email or 'n/a', p.id) for p in src_partners)))
+        dst_partner.message_post(
+            body=f"""{_("Merged with the following partners:")} {", ".join(f"{p.name} <{p.email or 'n/a'}> (ID {p.id})" for p in src_partners)}"""
+        )
+
 
         # delete source partner, since they are merged
         src_partners.unlink()
@@ -347,7 +346,7 @@ class MergePartnerAutomatic(models.TransientModel):
         sql_fields = []
         for field in fields:
             if field in ['email', 'name']:
-                sql_fields.append('lower(%s)' % field)
+                sql_fields.append(f'lower({field})')
             elif field in ['vat']:
                 sql_fields.append("replace(%s, ' ', '')" % field)
             else:
@@ -355,11 +354,11 @@ class MergePartnerAutomatic(models.TransientModel):
         group_fields = ', '.join(sql_fields)
 
         # where clause : for given group by columns, only keep the 'not null' record
-        filters = []
-        for field in fields:
-            if field in ['email', 'name', 'vat']:
-                filters.append((field, 'IS NOT', 'NULL'))
-        criteria = ' AND '.join('%s %s %s' % (field, operator, value) for field, operator, value in filters)
+        filters = [
+            (field, 'IS NOT', 'NULL')
+            for field in fields
+            if field in ['email', 'name', 'vat']
+        ]
 
         # build the query
         text = [
@@ -367,17 +366,22 @@ class MergePartnerAutomatic(models.TransientModel):
             "FROM res_partner",
         ]
 
-        if criteria:
-            text.append('WHERE %s' % criteria)
+        if criteria := ' AND '.join(
+            f'{field} {operator} {value}' for field, operator, value in filters
+        ):
+            text.append(f'WHERE {criteria}')
 
-        text.extend([
-            "GROUP BY %s" % group_fields,
-            "HAVING COUNT(*) >= 2",
-            "ORDER BY min(id)",
-        ])
+        text.extend(
+            [
+                f"GROUP BY {group_fields}",
+                "HAVING COUNT(*) >= 2",
+                "ORDER BY min(id)",
+            ]
+        )
+
 
         if maximum_group:
-            text.append("LIMIT %s" % maximum_group,)
+            text.append(f"LIMIT {maximum_group}")
 
         return ' '.join(text)
 
@@ -386,13 +390,14 @@ class MergePartnerAutomatic(models.TransientModel):
         """ Returns the list of field names the partner can be grouped (as merge
             criteria) according to the option checked on the wizard
         """
-        groups = []
         group_by_prefix = 'group_by_'
 
-        for field_name in self._fields:
-            if field_name.startswith(group_by_prefix):
-                if getattr(self, field_name, False):
-                    groups.append(field_name[len(group_by_prefix):])
+        groups = [
+            field_name[len(group_by_prefix) :]
+            for field_name in self._fields
+            if field_name.startswith(group_by_prefix)
+            and getattr(self, field_name, False)
+        ]
 
         if not groups:
             raise UserError(_("You have to specify a filter for your selection"))
@@ -453,18 +458,22 @@ class MergePartnerAutomatic(models.TransientModel):
             # in this case, we try to find the next record.
             current_line = self.line_ids[0]
             current_partner_ids = literal_eval(current_line.aggr_ids)
-            values.update({
+            values |= {
                 'current_line_id': current_line.id,
                 'partner_ids': [(6, 0, current_partner_ids)],
-                'dst_partner_id': self._get_ordered_partner(current_partner_ids)[-1].id,
+                'dst_partner_id': self._get_ordered_partner(current_partner_ids)[
+                    -1
+                ].id,
                 'state': 'selection',
-            })
+            }
+
         else:
-            values.update({
+            values |= {
                 'current_line_id': False,
                 'partner_ids': [],
                 'state': 'finished',
-            })
+            }
+
 
         self.write(values)
 

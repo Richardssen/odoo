@@ -45,20 +45,21 @@ class CompanyLDAP(models.Model):
         """
 
         ldaps = self.sudo().search([('ldap_server', '!=', False)], order='sequence')
-        res = ldaps.read([
-            'id',
-            'company',
-            'ldap_server',
-            'ldap_server_port',
-            'ldap_binddn',
-            'ldap_password',
-            'ldap_filter',
-            'ldap_base',
-            'user',
-            'create_user',
-            'ldap_tls'
-        ])
-        return res
+        return ldaps.read(
+            [
+                'id',
+                'company',
+                'ldap_server',
+                'ldap_server_port',
+                'ldap_binddn',
+                'ldap_password',
+                'ldap_filter',
+                'ldap_base',
+                'user',
+                'create_user',
+                'ldap_tls',
+            ]
+        )
 
     def connect(self, conf):
         """
@@ -186,8 +187,7 @@ class CompanyLDAP(models.Model):
         user_id = False
         login = tools.ustr(login.lower().strip())
         self.env.cr.execute("SELECT id, active FROM res_users WHERE lower(login)=%s", (login,))
-        res = self.env.cr.fetchone()
-        if res:
+        if res := self.env.cr.fetchone():
             if res[1]:
                 user_id = res[0]
         elif conf['create_user']:

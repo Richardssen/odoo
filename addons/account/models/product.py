@@ -60,10 +60,7 @@ class ProductTemplate(models.Model):
 
     @api.multi
     def _get_asset_accounts(self):
-        res = {}
-        res['stock_input'] = False
-        res['stock_output'] = False
-        return res
+        return {'stock_input': False, 'stock_output': False}
 
     @api.multi
     def get_product_accounts(self, fiscal_pos=None):

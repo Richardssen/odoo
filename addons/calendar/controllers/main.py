@@ -18,8 +18,9 @@ class CalendarController(http.Controller):
         registry = registry_get(db)
         with registry.cursor() as cr:
             env = Environment(cr, SUPERUSER_ID, {})
-            attendee = env['calendar.attendee'].search([('access_token', '=', token), ('state', '!=', 'accepted')])
-            if attendee:
+            if attendee := env['calendar.attendee'].search(
+                [('access_token', '=', token), ('state', '!=', 'accepted')]
+            ):
                 attendee.do_accept()
         return self.view(db, token, action, id, view='form')
 
@@ -28,8 +29,9 @@ class CalendarController(http.Controller):
         registry = registry_get(db)
         with registry.cursor() as cr:
             env = Environment(cr, SUPERUSER_ID, {})
-            attendee = env['calendar.attendee'].search([('access_token', '=', token), ('state', '!=', 'declined')])
-            if attendee:
+            if attendee := env['calendar.attendee'].search(
+                [('access_token', '=', token), ('state', '!=', 'declined')]
+            ):
                 attendee.do_decline()
         return self.view(db, token, action, id, view='form')
 
@@ -46,7 +48,10 @@ class CalendarController(http.Controller):
             # If user is logged, redirect to form view of event
             # otherwise, display the simplifyed web page with event informations
             if request.session.uid:
-                return werkzeug.utils.redirect('/web?db=%s#id=%s&view_type=form&model=calendar.event' % (db, id))
+                return werkzeug.utils.redirect(
+                    f'/web?db={db}#id={id}&view_type=form&model=calendar.event'
+                )
+
 
             # NOTE : calling render return a lazy response. The rendering result will be done when the
             # cursor will be closed. So it is requried to call `flatten` to make the redering before

@@ -132,8 +132,13 @@ class EventRegistration(models.Model):
     def _check_auto_confirmation(self):
         res = super(EventRegistration, self)._check_auto_confirmation()
         if res:
-            orders = self.env['sale.order'].search([('state', '=', 'draft'), ('id', 'in', self.mapped('sale_order_id').ids)], limit=1)
-            if orders:
+            if orders := self.env['sale.order'].search(
+                [
+                    ('state', '=', 'draft'),
+                    ('id', 'in', self.mapped('sale_order_id').ids),
+                ],
+                limit=1,
+            ):
                 res = False
         return res
 

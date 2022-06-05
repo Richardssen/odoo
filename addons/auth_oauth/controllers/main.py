@@ -56,7 +56,7 @@ class OAuthLogin(Home):
         except Exception:
             providers = []
         for provider in providers:
-            return_url = request.httprequest.url_root + 'auth_oauth/signin'
+            return_url = f'{request.httprequest.url_root}auth_oauth/signin'
             state = self.get_state(provider)
             params = dict(
                 response_type='token',
@@ -65,20 +65,23 @@ class OAuthLogin(Home):
                 scope=provider['scope'],
                 state=json.dumps(state),
             )
-            provider['auth_link'] = "%s?%s" % (provider['auth_endpoint'], werkzeug.url_encode(params))
+            provider[
+                'auth_link'
+            ] = f"{provider['auth_endpoint']}?{werkzeug.url_encode(params)}"
+
         return providers
 
     def get_state(self, provider):
         redirect = request.params.get('redirect') or 'web'
         if not redirect.startswith(('//', 'http://', 'https://')):
-            redirect = '%s%s' % (request.httprequest.url_root, redirect[1:] if redirect[0] == '/' else redirect)
+            redirect = f"{request.httprequest.url_root}{redirect[1:] if redirect[0] == '/' else redirect}"
+
         state = dict(
             d=request.session.db,
             p=provider['id'],
             r=werkzeug.url_quote_plus(redirect),
         )
-        token = request.params.get('token')
-        if token:
+        if token := request.params.get('token'):
             state['t'] = token
         return state
 
@@ -184,7 +187,7 @@ class OAuthController(http.Controller):
                 env = api.Environment(cr, SUPERUSER_ID, {})
                 provider = env.ref('auth_oauth.provider_openerp')
             except ValueError:
-                return set_cookie_and_redirect('/web?db=%s' % dbname)
+                return set_cookie_and_redirect(f'/web?db={dbname}')
             assert provider._name == 'auth.oauth.provider'
 
         state = {

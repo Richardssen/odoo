@@ -59,8 +59,7 @@ class Lead(FormatAddress, models.Model):
     _mail_mass_mailing = _('Leads / Opportunities')
 
     def _default_probability(self):
-        stage_id = self._default_stage_id()
-        if stage_id:
+        if stage_id := self._default_stage_id():
             return self.env['crm.stage'].browse(stage_id).probability
         return 10
 
@@ -149,12 +148,7 @@ class Lead(FormatAddress, models.Model):
 
     @api.model
     def _read_group_stage_ids(self, stages, domain, order):
-        # retrieve team_id from the context and write the domain
-        # - ('id', 'in', stages.ids): add columns that should be present
-        # - OR ('fold', '=', False): add default columns that are not folded
-        # - OR ('team_ids', '=', team_id), ('fold', '=', False) if team_id: add team columns that are not folded
-        team_id = self._context.get('default_team_id')
-        if team_id:
+        if team_id := self._context.get('default_team_id'):
             search_domain = ['|', ('id', 'in', stages.ids), '|', ('team_id', '=', False), ('team_id', '=', team_id)]
         else:
             search_domain = ['|', ('id', 'in', stages.ids), ('team_id', '=', False)]
@@ -170,10 +164,7 @@ class Lead(FormatAddress, models.Model):
             kanban_state = 'red'
             if lead.date_action:
                 lead_date = fields.Date.from_string(lead.date_action)
-                if lead_date >= today:
-                    kanban_state = 'green'
-                else:
-                    kanban_state = 'grey'
+                kanban_state = 'green' if lead_date >= today else 'grey'
             lead.kanban_state = kanban_state
 
     @api.depends('date_open')
@@ -225,7 +216,7 @@ class Lead(FormatAddress, models.Model):
 
             return {
                 'partner_name': partner_name,
-                'contact_name': partner.name if not partner.is_company else False,
+                'contact_name': False if partner.is_company else partner.name,
                 'title': partner.title.id,
                 'street': partner.street,
                 'street2': partner.street2,
@@ -239,6 +230,7 @@ class Lead(FormatAddress, models.Model):
                 'zip': partner.zip,
                 'function': partner.function,
             }
+
         return {}
 
     @api.onchange('partner_id')
@@ -446,8 +438,7 @@ class Lead(FormatAddress, models.Model):
         # helpers
         def _get_first_not_null(attr, opportunities):
             for opp in opportunities:
-                val = opp[attr]
-                if val:
+                if val := opp[attr]:
                     return val
             return False
 
@@ -502,7 +493,7 @@ class Lead(FormatAddress, models.Model):
                         val.name_get()[0][1]
                         for val in value.sudo()
                     )
-            body.append("%s: %s" % (field.string, value or ''))
+            body.append(f"{field.string}: {value or ''}")
         return "<br/>".join(body + ['<br/>'])
 
     @api.multi
@@ -518,7 +509,7 @@ class Lead(FormatAddress, models.Model):
         # mail message's subject
         result_type = opportunities._merge_get_result_type()
         merge_message = _('Merged leads') if result_type == 'lead' else _('Merged opportunities')
-        subject = merge_message + ": " + ", ".join(opportunities.mapped('name'))
+        subject = f"{merge_message}: " + ", ".join(opportunities.mapped('name'))
         # message bodies
         message_bodies = opportunities._mail_body(CRM_LEAD_FIELDS_TO_MERGE)
         message_body = "\n\n".join(message_bodies)
@@ -645,9 +636,11 @@ class Lead(FormatAddress, models.Model):
     @api.model
     def _get_duplicated_leads_by_emails(self, partner_id, email, include_lost=False):
         """ Search for opportunities that have the same partner and that arent done or cancelled """
-        partner_match_domain = []
-        for email in set(email_split(email) + [email]):
-            partner_match_domain.append(('email_from', '=ilike', email))
+        partner_match_domain = [
+            ('email_from', '=ilike', email)
+            for email in set(email_split(email) + [email])
+        ]
+
         if partner_id:
             partner_match_domain.append(('partner_id', '=', partner_id))
         partner_match_domain = ['|'] * (len(partner_match_domain) - 1) + partner_match_domain
@@ -686,9 +679,7 @@ class Lead(FormatAddress, models.Model):
 
     @api.multi
     def convert_opportunity(self, partner_id, user_ids=False, team_id=False):
-        customer = False
-        if partner_id:
-            customer = self.env['res.partner'].browse(partner_id)
+        customer = self.env['res.partner'].browse(partner_id) if partner_id else False
         for lead in self:
             if not lead.active or lead.probability == 100:
                 continue
@@ -859,7 +850,7 @@ class Lead(FormatAddress, models.Model):
         if help:
             alias_record = self.env.ref("crm.mail_alias_lead_info", raise_if_not_found=False)
             if alias_record and alias_record.alias_domain and alias_record.alias_name:
-                email = '%s@%s' % (alias_record.alias_name, alias_record.alias_domain)
+                email = f'{alias_record.alias_name}@{alias_record.alias_domain}'
                 email_link = "<a href='mailto:%s'>%s</a>" % (email, email)
                 dynamic_help = _("""All email incoming to %s will automatically
                     create new opportunity. Update your business card, phone book, social media,...
@@ -873,10 +864,7 @@ class Lead(FormatAddress, models.Model):
 
     @api.multi
     def log_meeting(self, meeting_subject, meeting_date, duration):
-        if not duration:
-            duration = _('unknown')
-        else:
-            duration = str(duration)
+        duration = str(duration) if duration else _('unknown')
         meet_date = fields.Datetime.from_string(meeting_date)
         meeting_usertime = fields.Datetime.to_string(fields.Datetime.context_timestamp(self, meet_date))
         html_time = "<time datetime='%s+00:00'>%s</time>" % (meeting_date, meeting_usertime)
@@ -1005,7 +993,7 @@ class Lead(FormatAddress, models.Model):
         """
         if target_name in ['won', 'done', 'invoiced']:
             # bypass rights, since self.env.user is browsed as SUPERUSER_ID
-            self.env.user.write({'target_sales_' + target_name: target_value})
+            self.env.user.write({f'target_sales_{target_name}': target_value})
         else:
             raise UserError(_('This target does not exist.'))
 
@@ -1058,11 +1046,11 @@ class Lead(FormatAddress, models.Model):
 
     @api.multi
     def get_formview_id(self):
-        if self.type == 'opportunity':
-            view_id = self.env.ref('crm.crm_case_form_view_oppor').id
-        else:
-            view_id = super(Lead, self).get_formview_id()
-        return view_id
+        return (
+            self.env.ref('crm.crm_case_form_view_oppor').id
+            if self.type == 'opportunity'
+            else super(Lead, self).get_formview_id()
+        )
 
     @api.multi
     def message_get_suggested_recipients(self):
@@ -1098,7 +1086,7 @@ class Lead(FormatAddress, models.Model):
             'partner_id': msg_dict.get('author_id', False),
         }
         if msg_dict.get('author_id'):
-            defaults.update(self._onchange_partner_id_values(msg_dict.get('author_id')))
+            defaults |= self._onchange_partner_id_values(msg_dict.get('author_id'))
         if msg_dict.get('priority') in dict(crm_stage.AVAILABLE_PRIORITIES):
             defaults['priority'] = msg_dict.get('priority')
         defaults.update(custom_values)
@@ -1134,7 +1122,10 @@ class Lead(FormatAddress, models.Model):
                 emails = email_re.findall(partner_info['full_name'] or '')
                 email = emails and emails[0] or ''
                 if email and self.email_from and email.lower() == self.email_from.lower():
-                    partner_info['full_name'] = '%s <%s>' % (self.partner_name or self.contact_name, email)
+                    partner_info[
+                        'full_name'
+                    ] = f'{self.partner_name or self.contact_name} <{email}>'
+
                     break
         return result
 

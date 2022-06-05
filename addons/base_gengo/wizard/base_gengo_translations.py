@@ -191,8 +191,7 @@ class BaseGengoTranslations(models.TransientModel):
             'state': 'inprogress'
         }
         term_ids.write(vals)
-        jobs = response.get('jobs', [])
-        if jobs:
+        if jobs := response.get('jobs', []):
             for t_id, job in jobs.items():
                 self._update_terms_job(job)
 
@@ -218,16 +217,19 @@ class BaseGengoTranslations(models.TransientModel):
                     comment += '\n' + term.gengo_comment
                 jobs[time.strftime('%Y%m%d%H%M%S') + '-' + str(term.id)] = {
                     'type': 'text',
-                    'slug': 'Single :: English to ' + term.lang,
+                    'slug': f'Single :: English to {term.lang}',
                     'tier': tools.ustr(term.gengo_translation),
                     'custom_data': str(term.id),
                     'body_src': term.src,
                     'lc_src': 'en',
-                    'lc_tgt': IrTranslation._get_gengo_corresponding_language(term.lang),
+                    'lc_tgt': IrTranslation._get_gengo_corresponding_language(
+                        term.lang
+                    ),
                     'auto_approve': auto_approve,
                     'comment': comment,
-                    'callback_url': "%s/website/gengo_callback?pgk=%s&db=%s" % (base_url, self.get_gengo_key(), self.env.cr.dbname)
+                    'callback_url': f"{base_url}/website/gengo_callback?pgk={self.get_gengo_key()}&db={self.env.cr.dbname}",
                 }
+
         return {'jobs': jobs, 'as_group': 0}
 
     @api.model

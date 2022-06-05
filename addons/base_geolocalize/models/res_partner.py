@@ -30,10 +30,14 @@ def geo_query_address(street=None, zip=None, city=None, state=None, country=None
         # put country qualifier in front, otherwise GMap gives wrong results,
         # e.g. 'Congo, Democratic Republic of the' => 'Democratic Republic of the Congo'
         country = '{1} {0}'.format(*country.split(',', 1))
-    return tools.ustr(', '.join(filter(None, [street,
-                                              ("%s %s" % (zip or '', city or '')).strip(),
-                                              state,
-                                              country])))
+    return tools.ustr(
+        ', '.join(
+            filter(
+                None,
+                [street, f"{zip or ''} {city or ''}".strip(), state, country],
+            )
+        )
+    )
 
 
 class ResPartner(models.Model):
@@ -47,12 +51,15 @@ class ResPartner(models.Model):
     def geo_localize(self):
         # We need country names in English below
         for partner in self.with_context(lang='en_US'):
-            result = geo_find(geo_query_address(street=partner.street,
-                                                zip=partner.zip,
-                                                city=partner.city,
-                                                state=partner.state_id.name,
-                                                country=partner.country_id.name))
-            if result:
+            if result := geo_find(
+                geo_query_address(
+                    street=partner.street,
+                    zip=partner.zip,
+                    city=partner.city,
+                    state=partner.state_id.name,
+                    country=partner.country_id.name,
+                )
+            ):
                 partner.write({
                     'partner_latitude': result[0],
                     'partner_longitude': result[1],

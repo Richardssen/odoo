@@ -82,7 +82,12 @@ class TestRecurrentEvent(common.TransactionCase):
             ('start', '>=', '2011-03-01'), ('stop', '<=', '2012-05-13')
         ])
         for meeting in meetings:
-            self.assertEqual(meeting.name, 'Sprint Review for google modules', 'Name not changed for id: %s' % meeting.id)
+            self.assertEqual(
+                meeting.name,
+                'Sprint Review for google modules',
+                f'Name not changed for id: {meeting.id}',
+            )
+
 
         # I change description of my weekly meeting Review code with programmer.
         idval = '%d-%s' % (self.calendar_event_sprint_review.id, '20110425124700')
@@ -91,7 +96,12 @@ class TestRecurrentEvent(common.TransactionCase):
         # I check whether that all the records of this recurrence has been edited.
         meetings = self.CalendarEvent.search([('recurrent_id', '=', self.calendar_event_sprint_review.id)])
         for meeting in meetings:
-            self.assertEqual(meeting.description, 'Review code of the module: sync_google_calendar.', 'Description not changed for id: %s' % meeting.id)
+            self.assertEqual(
+                meeting.description,
+                'Review code of the module: sync_google_calendar.',
+                f'Description not changed for id: {meeting.id}',
+            )
+
 
         # I update the description of two meetings, and check that both have been updated
         self.calendar_event_sprint_review.write({'description': "Some description"})

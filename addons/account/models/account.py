@@ -143,7 +143,7 @@ class AccountAccount(models.Model):
         args = args or []
         domain = []
         if name:
-            domain = ['|', ('code', '=ilike', name + '%'), ('name', operator, name)]
+            domain = ['|', ('code', '=ilike', f'{name}%'), ('name', operator, name)]
             if operator in expression.NEGATIVE_TERM_OPERATORS:
                 domain = ['&', '!'] + domain[1:]
         accounts = self.search(domain + args, limit=limit)
@@ -157,11 +157,7 @@ class AccountAccount(models.Model):
     @api.multi
     @api.depends('name', 'code')
     def name_get(self):
-        result = []
-        for account in self:
-            name = account.code + ' ' + account.name
-            result.append((account.id, name))
-        return result
+        return [(account.id, f'{account.code} {account.name}') for account in self]
 
     @api.one
     @api.returns('self', lambda value: value.id)
@@ -192,9 +188,10 @@ class AccountAccount(models.Model):
         if self.env['account.move.line'].search([('account_id', 'in', self.ids)], limit=1):
             raise UserError(_('You cannot do that on an account that contains journal items.'))
         #Checking whether the account is set as a property to any Partner or not
-        values = ['account.account,%s' % (account_id,) for account_id in self.ids]
-        partner_prop_acc = self.env['ir.property'].search([('value_reference', 'in', values)], limit=1)
-        if partner_prop_acc:
+        values = [f'account.account,{account_id}' for account_id in self.ids]
+        if partner_prop_acc := self.env['ir.property'].search(
+            [('value_reference', 'in', values)], limit=1
+        ):
             raise UserError(_('You cannot remove/deactivate an account which is set on a customer or vendor.'))
         return super(AccountAccount, self).unlink()
 
@@ -297,9 +294,17 @@ class AccountJournal(models.Model):
     @api.constrains('currency_id', 'default_credit_account_id', 'default_debit_account_id')
     def _check_currency(self):
         if self.currency_id:
-            if self.default_credit_account_id and not self.default_credit_account_id.currency_id.id == self.currency_id.id:
+            if (
+                self.default_credit_account_id
+                and self.default_credit_account_id.currency_id.id
+                != self.currency_id.id
+            ):
                 raise ValidationError(_('Configuration error!\nThe currency of the journal should be the same than the default credit account.'))
-            if self.default_debit_account_id and not self.default_debit_account_id.currency_id.id == self.currency_id.id:
+            if (
+                self.default_debit_account_id
+                and self.default_debit_account_id.currency_id.id
+                != self.currency_id.id
+            ):
                 raise ValidationError(_('Configuration error!\nThe currency of the journal should be the same than the default debit account.'))
 
     @api.one
@@ -346,9 +351,13 @@ class AccountJournal(models.Model):
     @api.multi
     def write(self, vals):
         for journal in self:
-            if ('company_id' in vals and journal.company_id.id != vals['company_id']):
-                if self.env['account.move'].search([('journal_id', 'in', self.ids)], limit=1):
-                    raise UserError(_('This journal already contains items, therefore you cannot modify its company.'))
+            if (
+                'company_id' in vals
+                and journal.company_id.id != vals['company_id']
+            ) and self.env['account.move'].search(
+                [('journal_id', 'in', self.ids)], limit=1
+            ):
+                raise UserError(_('This journal already contains items, therefore you cannot modify its company.'))
             if ('code' in vals and journal.code != vals['code']):
                 if self.env['account.move'].search([('journal_id', 'in', self.ids)], limit=1):
                     raise UserError(_('This journal already contains items, therefore you cannot modify its short name.'))
@@ -358,9 +367,15 @@ class AccountJournal(models.Model):
                     new_prefix = self._get_sequence_prefix(vals['code'], refund=True)
                     journal.refund_sequence_id.write({'prefix': new_prefix})
             if 'currency_id' in vals:
-                if not 'default_debit_account_id' in vals and self.default_debit_account_id:
+                if (
+                    'default_debit_account_id' not in vals
+                    and self.default_debit_account_id
+                ):
                     self.default_debit_account_id.currency_id = vals['currency_id']
-                if not 'default_credit_account_id' in vals and self.default_credit_account_id:
+                if (
+                    'default_credit_account_id' not in vals
+                    and self.default_credit_account_id
+                ):
                     self.default_credit_account_id.currency_id = vals['currency_id']
             if 'bank_acc_number' in vals and not vals.get('bank_acc_number') and journal.bank_account_id:
                 raise UserError(_('You cannot empty the account number once set.\nIf you would like to delete the account number, you can do it from the Bank Accounts list.'))
@@ -377,8 +392,8 @@ class AccountJournal(models.Model):
     def _get_sequence_prefix(self, code, refund=False):
         prefix = code.upper()
         if refund:
-            prefix = 'R' + prefix
-        return prefix + '/%(range_year)s/'
+            prefix = f'R{prefix}'
+        return f'{prefix}/%(range_year)s/'
 
     @api.model
     def _create_sequence(self, vals, refund=False):
@@ -444,7 +459,13 @@ class AccountJournal(models.Model):
             # If no code provided, loop to find next available journal code
             if not vals.get('code'):
                 journal_code_base = (vals['type'] == 'cash' and 'CSH' or 'BNK')
-                journals = self.env['account.journal'].search([('code', 'like', journal_code_base + '%'), ('company_id', '=', company_id)])
+                journals = self.env['account.journal'].search(
+                    [
+                        ('code', 'like', f'{journal_code_base}%'),
+                        ('company_id', '=', company_id),
+                    ]
+                )
+
                 for num in xrange(1, 100):
                     # journal_code has a maximal size of 5, hence we can enforce the boundary num < 100
                     journal_code = journal_code_base + str(num)
@@ -494,7 +515,7 @@ class AccountJournal(models.Model):
         res = []
         for journal in self:
             currency = journal.currency_id or journal.company_id.currency_id
-            name = "%s (%s)" % (journal.name, currency.name)
+            name = f"{journal.name} ({currency.name})"
             res += [(journal.id, name)]
         return res
 
@@ -506,12 +527,10 @@ class AccountJournal(models.Model):
 
     @api.multi
     def _search_company_journals(self, operator, value):
-        if value:
+        if value or operator != '=':
             recs = self.search([('company_id', operator, self.env.user.company_id.id)])
-        elif operator == '=':
-            recs = self.search([('company_id', '!=', self.env.user.company_id.id)])
         else:
-            recs = self.search([('company_id', operator, self.env.user.company_id.id)])
+            recs = self.search([('company_id', '!=', self.env.user.company_id.id)])
         return [('id', 'in', [x.id for x in recs])]
 
     @api.multi
@@ -589,19 +608,22 @@ class AccountTax(models.Model):
         company_id = self.env.user.company_id.id
         ir_values = self.env['ir.values']
         supplier_taxes_id = set(ir_values.get_default('product.template', 'supplier_taxes_id', company_id=company_id))
-        deleted_sup_tax = self.filtered(lambda tax: tax.id in supplier_taxes_id)
-        if deleted_sup_tax:
+        if deleted_sup_tax := self.filtered(
+            lambda tax: tax.id in supplier_taxes_id
+        ):
             ir_values.sudo().set_default('product.template', "supplier_taxes_id", list(supplier_taxes_id - set(deleted_sup_tax.ids)), for_all_users=True, company_id=company_id)
         taxes_id = set(self.env['ir.values'].get_default('product.template', 'taxes_id', company_id=company_id))
-        deleted_tax = self.filtered(lambda tax: tax.id in taxes_id)
-        if deleted_tax:
+        if deleted_tax := self.filtered(lambda tax: tax.id in taxes_id):
             ir_values.sudo().set_default('product.template', "taxes_id", list(taxes_id - set(deleted_tax.ids)), for_all_users=True, company_id=company_id)
         return super(AccountTax, self).unlink()
 
     @api.one
     @api.constrains('children_tax_ids', 'type_tax_use')
     def _check_children_scope(self):
-        if not all(child.type_tax_use in ('none', self.type_tax_use) for child in self.children_tax_ids):
+        if any(
+            child.type_tax_use not in ('none', self.type_tax_use)
+            for child in self.children_tax_ids
+        ):
             raise ValidationError(_('The application scope of taxes in a group must be either the same as the group or "None".'))
 
     @api.one
@@ -679,9 +701,9 @@ class AccountTax(models.Model):
                 return quantity * self.amount
         if (self.amount_type == 'percent' and not self.price_include) or (self.amount_type == 'division' and self.price_include):
             return base_amount * self.amount / 100
-        if self.amount_type == 'percent' and self.price_include:
+        if self.amount_type == 'percent':
             return base_amount - (base_amount / (1 + self.amount / 100))
-        if self.amount_type == 'division' and not self.price_include:
+        if self.amount_type == 'division':
             return base_amount / (1 - self.amount / 100) - base_amount
 
     @api.multi
@@ -715,10 +737,7 @@ class AccountTax(models.Model):
                 'analytic': boolean,
             }]
         } """
-        if len(self) == 0:
-            company_id = self.env.user.company_id
-        else:
-            company_id = self[0].company_id
+        company_id = self.env.user.company_id if len(self) == 0 else self[0].company_id
         if not currency:
             currency = company_id.currency_id
         taxes = []
@@ -737,7 +756,7 @@ class AccountTax(models.Model):
         # amounts. For example, in SO/PO line, we don't want to round the price unit at the
         # precision of the currency.
         # The context key 'round' allows to force the standard behavior.
-        round_tax = False if company_id.tax_calculation_rounding_method == 'round_globally' else True
+        round_tax = company_id.tax_calculation_rounding_method != 'round_globally'
         round_total = True
         if 'round' in self.env.context:
             round_tax = bool(self.env.context['round'])
@@ -762,10 +781,11 @@ class AccountTax(models.Model):
                 continue
 
             tax_amount = tax._compute_amount(base, price_unit, quantity, product, partner)
-            if not round_tax:
-                tax_amount = round(tax_amount, prec)
-            else:
-                tax_amount = currency.round(tax_amount)
+            tax_amount = (
+                currency.round(tax_amount)
+                if round_tax
+                else round(tax_amount, prec)
+            )
 
             if tax.price_include:
                 total_excluded -= tax_amount
@@ -796,9 +816,9 @@ class AccountTax(models.Model):
     @api.model
     def _fix_tax_included_price(self, price, prod_taxes, line_taxes):
         """Subtract tax amount from price when corresponding "price included" taxes do not apply"""
-        # FIXME get currency in param?
-        incl_tax = prod_taxes.filtered(lambda tax: tax not in line_taxes and tax.price_include)
-        if incl_tax:
+        if incl_tax := prod_taxes.filtered(
+            lambda tax: tax not in line_taxes and tax.price_include
+        ):
             return incl_tax.compute_all(price)['total_excluded']
         return price
 

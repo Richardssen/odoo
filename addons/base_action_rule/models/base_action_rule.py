@@ -283,8 +283,7 @@ class BaseActionRule(models.Model):
                 action_rule = self.env['base.action.rule'].browse(action_rule_id)
                 result = {}
                 for server_action in action_rule.server_action_ids.with_context(active_model=self._name, onchange_self=self):
-                    res = server_action.run()
-                    if res:
+                    if res := server_action.run():
                         if 'value' in res:
                             res['value'].pop('id', None)
                             self.update({key: val for key, val in res['value'].iteritems() if key in self._fields})
@@ -333,9 +332,8 @@ class BaseActionRule(models.Model):
                 day_date=fields.Datetime.from_string(record_dt),
                 compute_leaves=True,
             )[0]
-        else:
-            delay = DATE_RANGE_FUNCTION[action.trg_date_range_type](action.trg_date_range)
-            return fields.Datetime.from_string(record_dt) + delay
+        delay = DATE_RANGE_FUNCTION[action.trg_date_range_type](action.trg_date_range)
+        return fields.Datetime.from_string(record_dt) + delay
 
     @api.model
     def _check(self, automatic=False, use_new_cursor=False):
@@ -355,7 +353,7 @@ class BaseActionRule(models.Model):
                 domain = safe_eval(action.filter_domain, eval_context)
             elif action.filter_id:
                 domain = safe_eval(action.filter_id.domain, eval_context)
-                context.update(safe_eval(action.filter_id.context))
+                context |= safe_eval(action.filter_id.context)
                 if 'lang' not in context:
                     # Filters might be language-sensitive, attempt to reuse creator lang
                     # as we are usually running this as super-user in background

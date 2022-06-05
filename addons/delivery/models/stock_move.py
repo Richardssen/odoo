@@ -27,14 +27,19 @@ class StockMove(models.Model):
             Pass the carrier to the picking from the sales order
             (Should also work in case of Phantom BoMs when on explosion the original move is deleted)
         """
-        procs_to_check = []
-        for move in self:
-            if move.procurement_id and move.procurement_id.sale_line_id and move.procurement_id.sale_line_id.order_id.carrier_id:
-                procs_to_check += [move.procurement_id]
+        procs_to_check = [
+            move.procurement_id
+            for move in self
+            if move.procurement_id
+            and move.procurement_id.sale_line_id
+            and move.procurement_id.sale_line_id.order_id.carrier_id
+        ]
+
         res = super(StockMove, self).action_confirm()
         for proc in procs_to_check:
-            pickings = (proc.move_ids.mapped('picking_id')).filtered(lambda record: not record.carrier_id)
-            if pickings:
+            if pickings := (proc.move_ids.mapped('picking_id')).filtered(
+                lambda record: not record.carrier_id
+            ):
                 pickings.write({
                     'carrier_id': proc.sale_line_id.order_id.carrier_id.id,
                 })

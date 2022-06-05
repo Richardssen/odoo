@@ -48,7 +48,12 @@ class TestLead2opportunity2win(TestCrmCases):
         self.assertEqual(crm_case_13.name, "Plan to buy 60 keyboards and mouses", "Opportunity name not correct")
         self.assertEqual(crm_case_13.type, 'opportunity', "Lead is not converted to opportunity!")
         expected_partner = "Will McEncroe"
-        self.assertEqual(crm_case_13.partner_id.name, expected_partner, "Partner mismatch! %s vs %s" % (crm_case_13.partner_id.name, expected_partner))
+        self.assertEqual(
+            crm_case_13.partner_id.name,
+            expected_partner,
+            f"Partner mismatch! {crm_case_13.partner_id.name} vs {expected_partner}",
+        )
+
         self.assertEqual(crm_case_13.stage_id.id, default_stage_id, "Stage of probability is incorrect!")
 
         # Then check for second lead converted on opportunity.

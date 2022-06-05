@@ -123,21 +123,17 @@ class AccountAssetAsset(models.Model):
             LEFT JOIN account_move m ON (rel.move_id = m.id)
             WHERE a.id IN %s
             GROUP BY a.id, m.date """, (tuple(self.ids),))
-        result = dict(self.env.cr.fetchall())
-        return result
+        return dict(self.env.cr.fetchall())
 
     @api.model
     def _cron_generate_entries(self):
-        self.compute_generated_entries(datetime.today())
+        self.compute_generated_entries(datetime.now())
 
     @api.model
     def compute_generated_entries(self, date, asset_type=None):
         # Entries generated : one by grouped category and one by asset from ungrouped category
         created_move_ids = []
-        type_domain = []
-        if asset_type:
-            type_domain = [('type', '=', asset_type)]
-
+        type_domain = [('type', '=', asset_type)] if asset_type else []
         ungrouped_assets = self.env['account.asset.asset'].search(type_domain + [('state', '=', 'open'), ('category_id.group_entries', '=', False)])
         created_move_ids += ungrouped_assets._compute_entries(date, group_entries=False)
 
@@ -150,20 +146,18 @@ class AccountAssetAsset(models.Model):
         amount = 0
         if sequence == undone_dotation_number:
             amount = residual_amount
-        else:
-            if self.method == 'linear':
-                amount = amount_to_depr / (undone_dotation_number - len(posted_depreciation_line_ids))
-                if self.prorata and self.category_id.type == 'purchase':
-                    amount = amount_to_depr / self.method_number
-                    if sequence == 1:
-                        days = (self.company_id.compute_fiscalyear_dates(depreciation_date)['date_to'] - depreciation_date).days + 1
-                        amount = (amount_to_depr / self.method_number) / total_days * days
-            elif self.method == 'degressive':
-                amount = residual_amount * self.method_progress_factor
-                if self.prorata:
-                    if sequence == 1:
-                        days = (self.company_id.compute_fiscalyear_dates(depreciation_date)['date_to'] - depreciation_date).days + 1
-                        amount = (residual_amount * self.method_progress_factor) / total_days * days
+        elif self.method == 'linear':
+            amount = amount_to_depr / (undone_dotation_number - len(posted_depreciation_line_ids))
+            if self.prorata and self.category_id.type == 'purchase':
+                amount = amount_to_depr / self.method_number
+                if sequence == 1:
+                    days = (self.company_id.compute_fiscalyear_dates(depreciation_date)['date_to'] - depreciation_date).days + 1
+                    amount = (amount_to_depr / self.method_number) / total_days * days
+        elif self.method == 'degressive':
+            amount = residual_amount * self.method_progress_factor
+            if self.prorata and sequence == 1:
+                days = (self.company_id.compute_fiscalyear_dates(depreciation_date)['date_to'] - depreciation_date).days + 1
+                amount = (residual_amount * self.method_progress_factor) / total_days * days
         return amount
 
     def _compute_board_undone_dotation_nb(self, depreciation_date, total_days):
@@ -196,9 +190,9 @@ class AccountAssetAsset(models.Model):
                 # depreciation_date = 1st of January of purchase year if annual valuation, 1st of
                 # purchase month in other cases
                 if self.method_period >= 12:
-                    asset_date = datetime.strptime(self.date[:4] + '-01-01', DF).date()
+                    asset_date = datetime.strptime(f'{self.date[:4]}-01-01', DF).date()
                 else:
-                    asset_date = datetime.strptime(self.date[:7] + '-01', DF).date()
+                    asset_date = datetime.strptime(f'{self.date[:7]}-01', DF).date()
                 # if we already have some previous validated entries, starting date isn't 1st January but last entry + method period
                 if posted_depreciation_line_ids and posted_depreciation_line_ids[-1].depreciation_date:
                     last_depreciation_date = datetime.strptime(posted_depreciation_line_ids[-1].depreciation_date, DF).date()
@@ -208,7 +202,7 @@ class AccountAssetAsset(models.Model):
             day = depreciation_date.day
             month = depreciation_date.month
             year = depreciation_date.year
-            total_days = (year % 4) and 365 or 366
+            total_days = 365 if year % 4 else 366
 
             undone_dotation_number = self._compute_board_undone_dotation_nb(depreciation_date, total_days)
 
@@ -266,8 +260,9 @@ class AccountAssetAsset(models.Model):
     def set_to_close(self):
         move_ids = []
         for asset in self:
-            unposted_depreciation_line_ids = asset.depreciation_line_ids.filtered(lambda x: not x.move_check)
-            if unposted_depreciation_line_ids:
+            if unposted_depreciation_line_ids := asset.depreciation_line_ids.filtered(
+                lambda x: not x.move_check
+            ):
                 old_values = {
                     'method_end': asset.method_end,
                     'method_number': asset.method_number,
@@ -278,7 +273,7 @@ class AccountAssetAsset(models.Model):
 
                 # Create a new depr. line with the residual amount and post it
                 sequence = len(asset.depreciation_line_ids) - len(unposted_depreciation_line_ids) + 1
-                today = datetime.today().strftime(DF)
+                today = datetime.now().strftime(DF)
                 vals = {
                     'amount': asset.value_residual,
                     'asset_id': asset.id,
@@ -343,9 +338,7 @@ class AccountAssetAsset(models.Model):
 
     @api.onchange('category_id')
     def onchange_category_id(self):
-        vals = self.onchange_category_id_values(self.category_id.id)
-        # We cannot use 'write' on an object that doesn't exist yet
-        if vals:
+        if vals := self.onchange_category_id_values(self.category_id.id):
             for k, v in vals['value'].iteritems():
                 setattr(self, k, v)
 
@@ -403,9 +396,12 @@ class AccountAssetAsset(models.Model):
     def open_entries(self):
         move_ids = []
         for asset in self:
-            for depreciation_line in asset.depreciation_line_ids:
-                if depreciation_line.move_id:
-                    move_ids.append(depreciation_line.move_id.id)
+            move_ids.extend(
+                depreciation_line.move_id.id
+                for depreciation_line in asset.depreciation_line_ids
+                if depreciation_line.move_id
+            )
+
         return {
             'name': _('Journal Entries'),
             'view_type': 'form',
@@ -443,7 +439,7 @@ class AccountAssetDepreciationLine(models.Model):
     @api.depends('move_id.state')
     def _get_move_posted_check(self):
         for line in self:
-            line.move_posted_check = True if line.move_id and line.move_id.state == 'posted' else False
+            line.move_posted_check = bool(line.move_id and line.move_id.state == 'posted')
 
     @api.multi
     def create_move(self, post_move=True):
@@ -455,7 +451,11 @@ class AccountAssetDepreciationLine(models.Model):
             current_currency = line.asset_id.currency_id
             amount = current_currency.compute(line.amount, company_currency)
             sign = (category_id.journal_id.type == 'purchase' or category_id.journal_id.type == 'sale' and 1) or -1
-            asset_name = line.asset_id.name + ' (%s/%s)' % (line.sequence, len(line.asset_id.depreciation_line_ids))
+            asset_name = (
+                line.asset_id.name
+                + f' ({line.sequence}/{len(line.asset_id.depreciation_line_ids)})'
+            )
+
             prec = self.env['decimal.precision'].precision_get('Account')
             move_line_1 = {
                 'name': asset_name,
@@ -553,12 +553,10 @@ class AccountAssetDepreciationLine(models.Model):
     @api.multi
     def log_message_when_posted(self):
         def _format_message(message_description, tracked_values):
-            message = ''
-            if message_description:
-                message = '<span>%s</span>' % message_description
+            message = f'<span>{message_description}</span>' if message_description else ''
             for name, values in tracked_values.iteritems():
-                message += '<div> &nbsp; &nbsp; &bull; <b>%s</b>: ' % name
-                message += '%s</div>' % values
+                message += f'<div> &nbsp; &nbsp; &bull; <b>{name}</b>: '
+                message += f'{values}</div>'
             return message
 
         for line in self:

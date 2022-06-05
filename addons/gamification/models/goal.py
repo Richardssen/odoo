@@ -189,14 +189,15 @@ class Goal(models.Model):
     def _get_completion(self):
         """Return the percentage of completeness of the goal, between 0 and 100"""
         for goal in self:
-            if goal.definition_condition == 'higher':
-                if goal.current >= goal.target_goal:
-                    goal.completeness = 100.0
-                else:
-                    goal.completeness = round(100.0 * goal.current / goal.target_goal, 2)
-            elif goal.current < goal.target_goal:
-                # a goal 'lower than' has only two values possible: 0 or 100%
+            if (
+                goal.definition_condition == 'higher'
+                and goal.current >= goal.target_goal
+                or goal.definition_condition != 'higher'
+                and goal.current < goal.target_goal
+            ):
                 goal.completeness = 100.0
+            elif goal.definition_condition == 'higher':
+                goal.completeness = round(100.0 * goal.current / goal.target_goal, 2)
             else:
                 goal.completeness = 0.0
 
@@ -282,7 +283,7 @@ class Goal(models.Model):
                     # the result of the evaluated codeis put in the 'result' local variable, propagated to the context
                     result = cxt.get('result')
                     if result is not None and isinstance(result, (float, int, long)):
-                        goals_to_write.update(goal._get_write_values(result))
+                        goals_to_write |= goal._get_write_values(result)
                     else:
                         _logger.error(
                             "Invalid return content '%r' from the evaluation "
@@ -325,7 +326,7 @@ class Goal(models.Model):
                                 if isinstance(queried_value, tuple) and len(queried_value) == 2 and isinstance(queried_value[0], (int, long)):
                                     queried_value = queried_value[0]
                                 if queried_value == query_goals[goal.id]:
-                                    new_value = user_value.get(field_name+'_count', goal.current)
+                                    new_value = user_value.get(f'{field_name}_count', goal.current)
                                     goals_to_write.update(goal._get_write_values(new_value))
 
                 else:
@@ -408,9 +409,12 @@ class Goal(models.Model):
                 # avoid drag&drop in kanban view
                 raise exceptions.UserError(_('Can not modify the configuration of a started goal'))
 
-            if vals.get('current') and 'no_remind_goal' not in self.env.context:
-                if goal.challenge_id.report_message_frequency == 'onchange':
-                    goal.challenge_id.sudo().report_progress(users=goal.user_id)
+            if (
+                vals.get('current')
+                and 'no_remind_goal' not in self.env.context
+                and goal.challenge_id.report_message_frequency == 'onchange'
+            ):
+                goal.challenge_id.sudo().report_progress(users=goal.user_id)
         return result
 
     @api.multi

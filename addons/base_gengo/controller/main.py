@@ -33,9 +33,7 @@ class website_gengo(Controller):
                     #('order_id', "=", term.order_id),
                 ]
 
-                all_ir_tanslations = IrTranslationSudo.search(domain)
-
-                if all_ir_tanslations:
+                if all_ir_tanslations := IrTranslationSudo.search(domain):
                     all_ir_tanslations.write({
                         'state': 'translated',
                         'value': job.get('body_tgt')

@@ -97,16 +97,13 @@ class FleetVehicleModel(models.Model):
         for record in self:
             name = record.name
             if record.brand_id.name:
-                name = record.brand_id.name + '/' + name
+                name = f'{record.brand_id.name}/{name}'
             res.append((record.id, name))
         return res
 
     @api.onchange('brand_id')
     def _onchange_brand(self):
-        if self.brand_id:
-            self.image_medium = self.brand_id.image
-        else:
-            self.image_medium = False
+        self.image_medium = self.brand_id.image if self.brand_id else False
 
 class FleetVehicleModelBrand(models.Model):
     _name = 'fleet.vehicle.model.brand'
@@ -188,13 +185,14 @@ class FleetVehicle(models.Model):
     @api.depends('model_id', 'license_plate')
     def _compute_vehicle_name(self):
         for record in self:
-            record.name = record.model_id.brand_id.name + '/' + record.model_id.name + '/' + record.license_plate
+            record.name = f'{record.model_id.brand_id.name}/{record.model_id.name}/{record.license_plate}'
 
     def _get_odometer(self):
         FleetVehicalOdometer = self.env['fleet.vehicle.odometer']
         for record in self:
-            vehicle_odometer = FleetVehicalOdometer.search([('vehicle_id', '=', record.id)], limit=1, order='value desc')
-            if vehicle_odometer:
+            if vehicle_odometer := FleetVehicalOdometer.search(
+                [('vehicle_id', '=', record.id)], limit=1, order='value desc'
+            ):
                 record.odometer = vehicle_odometer.value
             else:
                 record.odometer = 0
@@ -240,9 +238,16 @@ class FleetVehicle(models.Model):
                             due_soon = True
                             total += 1
                     if overdue or due_soon:
-                        log_contract = self.env['fleet.vehicle.log.contract'].search([('vehicle_id', '=', record.id), ('state', 'in', ('open', 'toclose'))],
-                            limit=1, order='expiration_date asc')
-                        if log_contract:
+                        if log_contract := self.env[
+                            'fleet.vehicle.log.contract'
+                        ].search(
+                            [
+                                ('vehicle_id', '=', record.id),
+                                ('state', 'in', ('open', 'toclose')),
+                            ],
+                            limit=1,
+                            order='expiration_date asc',
+                        ):
                             #we display only the name of the oldest overdue/due soon contract
                             name = log_contract.cost_subtype_id.name
 
@@ -252,7 +257,6 @@ class FleetVehicle(models.Model):
             record.contract_renewal_name = name
 
     def _search_contract_renewal_due_soon(self, operator, value):
-        res = []
         assert operator in ('=', '!=', '<>') and value in (True, False), 'Operation not supported'
         if (operator == '=' and value is True) or (operator in ('<>', '!=') and value is False):
             search_operator = 'in'
@@ -271,11 +275,9 @@ class FleetVehicle(models.Model):
                           AND contract.state IN ('open', 'toclose')
                         GROUP BY cost.vehicle_id""", (today, limit_date))
         res_ids = [x[0] for x in self.env.cr.fetchall()]
-        res.append(('id', search_operator, res_ids))
-        return res
+        return [('id', search_operator, res_ids)]
 
     def _search_get_overdue_contract_reminder(self, operator, value):
-        res = []
         assert operator in ('=', '!=', '<>') and value in (True, False), 'Operation not supported'
         if (operator == '=' and value is True) or (operator in ('<>', '!=') and value is False):
             search_operator = 'in'
@@ -291,15 +293,11 @@ class FleetVehicle(models.Model):
                           AND contract.state IN ('open', 'toclose')
                         GROUP BY cost.vehicle_id ''', (today,))
         res_ids = [x[0] for x in self.env.cr.fetchall()]
-        res.append(('id', search_operator, res_ids))
-        return res
+        return [('id', search_operator, res_ids)]
 
     @api.onchange('model_id')
     def _onchange_model(self):
-        if self.model_id:
-            self.image_medium = self.model_id.image
-        else:
-            self.image_medium = False
+        self.image_medium = self.model_id.image if self.model_id else False
 
     @api.model
     def create(self, data):
@@ -331,7 +329,7 @@ class FleetVehicle(models.Model):
                 old_license_plate = vehicle.license_plate or _('None')
                 changes.append(_("License Plate: from '%s' to '%s'") % (old_license_plate, vals['license_plate']))
 
-            if len(changes) > 0:
+            if changes:
                 self.message_post(body=", ".join(changes))
 
             return super(FleetVehicle, self).write(vals)
@@ -340,8 +338,7 @@ class FleetVehicle(models.Model):
     def return_action_to_open(self):
         """ This opens the xml view specified in xml_id for the current vehicle """
         self.ensure_one()
-        xml_id = self.env.context.get('xml_id')
-        if xml_id:
+        if xml_id := self.env.context.get('xml_id'):
             res = self.env['ir.actions.act_window'].for_xml_id('fleet', xml_id)
             res.update(
                 context=dict(self.env.context, default_vehicle_id=self.id),
@@ -381,7 +378,7 @@ class FleetVehicleOdometer(models.Model):
             if not name:
                 name = record.date
             elif record.date:
-                name += ' / ' + record.date
+                name += f' / {record.date}'
             self.name = name
 
     @api.onchange('vehicle_id')
@@ -528,9 +525,9 @@ class FleetVehicleLogContract(models.Model):
         for record in self:
             name = record.vehicle_id.name
             if record.cost_subtype_id.name:
-                name += ' / ' + record.cost_subtype_id.name
+                name += f' / {record.cost_subtype_id.name}'
             if record.date:
-                name += ' / ' + record.date
+                name += f' / {record.date}'
             record.name = name
 
     @api.depends('expiration_date', 'state')
@@ -541,7 +538,7 @@ class FleetVehicleLogContract(models.Model):
         otherwise return the number of days before the contract expires
         """
         for record in self:
-            if (record.expiration_date and (record.state == 'open' or record.state == 'toclose')):
+            if record.expiration_date and record.state in ['open', 'toclose']:
                 today = fields.Date.from_string(fields.Date.today())
                 renew_date = fields.Date.from_string(record.expiration_date)
                 diff_time = (renew_date - today).days
@@ -612,8 +609,15 @@ class FleetVehicleLogContract(models.Model):
             found = False
             last_cost_date = contract.start_date
             if contract.generated_cost_ids:
-                last_autogenerated_cost = VehicleCost.search([('contract_id', '=', contract.id), ('auto_generated', '=', True)], offset=0, limit=1, order='date desc')
-                if last_autogenerated_cost:
+                if last_autogenerated_cost := VehicleCost.search(
+                    [
+                        ('contract_id', '=', contract.id),
+                        ('auto_generated', '=', True),
+                    ],
+                    offset=0,
+                    limit=1,
+                    order='date desc',
+                ):
                     found = True
                     last_cost_date = last_autogenerated_cost.date
             startdate = fields.Date.from_string(last_cost_date)

@@ -69,19 +69,20 @@ class EventMailScheduler(models.Model):
     @api.one
     def execute(self):
         if self.interval_type == 'after_sub':
-            # update registration lines
-            lines = []
             reg_ids = [mail_reg.registration_id for mail_reg in self.mail_registration_ids]
-            for registration in filter(lambda item: item not in reg_ids, self.event_id.registration_ids):
-                lines.append((0, 0, {'registration_id': registration.id}))
-            if lines:
+            if lines := [
+                (0, 0, {'registration_id': registration.id})
+                for registration in filter(
+                    lambda item: item not in reg_ids,
+                    self.event_id.registration_ids,
+                )
+            ]:
                 self.write({'mail_registration_ids': lines})
             # execute scheduler on registrations
             self.mail_registration_ids.filtered(lambda reg: reg.scheduled_date and reg.scheduled_date <= datetime.strftime(fields.datetime.now(), tools.DEFAULT_SERVER_DATETIME_FORMAT)).execute()
-        else:
-            if not self.mail_sent:
-                self.event_id.mail_attendees(self.template_id.id)
-                self.write({'mail_sent': True})
+        elif not self.mail_sent:
+            self.event_id.mail_attendees(self.template_id.id)
+            self.write({'mail_sent': True})
         return True
 
     @api.model

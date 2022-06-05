@@ -53,8 +53,7 @@ class DecimalPrecisionFloat(models.AbstractModel):
 
     @api.model
     def precision(self, field, options=None):
-        dp = options and options.get('decimal_precision')
-        if dp:
+        if dp := options and options.get('decimal_precision'):
             return self.env['decimal.precision'].precision_get(dp)
 
         return super(DecimalPrecisionFloat, self).precision(field, options=options)

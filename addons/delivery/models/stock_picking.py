@@ -13,9 +13,7 @@ class StockQuantPackage(models.Model):
     @api.one
     @api.depends('quant_ids', 'children_ids')
     def _compute_weight(self):
-        weight = 0
-        for quant in self.quant_ids:
-            weight += quant.qty * quant.product_id.weight
+        weight = sum(quant.qty * quant.product_id.weight for quant in self.quant_ids)
         for pack in self.children_ids:
             pack._compute_weight()
             weight += pack.weight
@@ -76,7 +74,9 @@ class StockPicking(models.Model):
     @api.one
     @api.depends('package_ids', 'weight_bulk')
     def _compute_shipping_weight(self):
-        self.shipping_weight = self.weight_bulk + sum([pack.shipping_weight for pack in self.package_ids])
+        self.shipping_weight = self.weight_bulk + sum(
+            pack.shipping_weight for pack in self.package_ids
+        )
 
     carrier_price = fields.Float(string="Shipping Cost", readonly=True)
     delivery_type = fields.Selection(related='carrier_id.delivery_type', readonly=True)
@@ -121,7 +121,10 @@ class StockPicking(models.Model):
             return False
         # By default, sum the weights of all package operations contained in this package
         pack_operation_ids = self.env['stock.pack.operation'].search([('result_package_id', '=', package.id)])
-        package_weight = sum([x.qty_done * x.product_id.weight for x in pack_operation_ids])
+        package_weight = sum(
+            x.qty_done * x.product_id.weight for x in pack_operation_ids
+        )
+
         package.shipping_weight = package_weight
 
         return {
@@ -162,17 +165,17 @@ class StockPicking(models.Model):
         else:
             raise UserError(_("Your delivery method has no redirect on courier provider's website to track this order."))
 
-        client_action = {'type': 'ir.actions.act_url',
-                         'name': "Shipment Tracking Page",
-                         'target': 'new',
-                         'url': url,
-                         }
-        return client_action
+        return {
+            'type': 'ir.actions.act_url',
+            'name': "Shipment Tracking Page",
+            'target': 'new',
+            'url': url,
+        }
 
     @api.one
     def cancel_shipment(self):
         self.carrier_id.cancel_shipment(self)
-        msg = "Shipment %s cancelled" % self.carrier_tracking_ref
+        msg = f"Shipment {self.carrier_tracking_ref} cancelled"
         self.message_post(body=msg)
         self.carrier_tracking_ref = False
 

@@ -83,13 +83,16 @@ class TestCalendar(TransactionCase):
         allday_event.write({'alarm_ids': [(6, 0, [res_alarm_day_before_event_starts.id])]})
 
         # I create a recuring rule for my event
-        calendar_event_sprint_review = self.CalendarEvent.create({
-            'name': 'Begin of month meeting',
-            'start': fields.Date.today() + ' 12:00:00',
-            'stop': fields.Date.today() + ' 18:00:00',
-            'recurrency': True,
-            'rrule': 'FREQ=MONTHLY;INTERVAL=1;COUNT=12;BYDAY=1MO'
-        })
+        calendar_event_sprint_review = self.CalendarEvent.create(
+            {
+                'name': 'Begin of month meeting',
+                'start': f'{fields.Date.today()} 12:00:00',
+                'stop': f'{fields.Date.today()} 18:00:00',
+                'recurrency': True,
+                'rrule': 'FREQ=MONTHLY;INTERVAL=1;COUNT=12;BYDAY=1MO',
+            }
+        )
+
 
         # I check that the attributes are set correctly
         self.assertEqual(calendar_event_sprint_review.rrule_type, 'monthly', 'rrule_type should be mothly')

@@ -31,7 +31,7 @@ class SaleOrderLine(models.Model):
         self.ensure_one()
         res = super(SaleOrderLine, self)._prepare_invoice_line(qty)
         if self.event_id:
-            res['name'] = '%s: %s' % (res.get('name', ''), self.event_id.name)
+            res['name'] = f"{res.get('name', '')}: {self.event_id.name}"
         return res
 
     @api.multi
@@ -49,7 +49,7 @@ class SaleOrderLine(models.Model):
             else:
                 existing_registrations.filtered(lambda self: self.state == 'cancel').do_draft()
 
-            for count in range(int(so_line.product_uom_qty) - len(existing_registrations)):
+            for _ in range(int(so_line.product_uom_qty) - len(existing_registrations)):
                 registration = {}
                 if registration_data:
                     registration = registration_data.pop()

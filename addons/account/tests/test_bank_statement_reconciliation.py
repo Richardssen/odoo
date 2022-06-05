@@ -33,11 +33,15 @@ class TestBankStatementReconciliation(AccountingTestCase):
         # check everything went as expected
         rec_move = st_line.journal_entry_ids[0]
         self.assertTrue(rec_move)
-        counterpart_mv_line = None
-        for l in rec_move.line_ids:
-            if l.account_id.user_type_id.type == 'receivable':
-                counterpart_mv_line = l
-                break
+        counterpart_mv_line = next(
+            (
+                l
+                for l in rec_move.line_ids
+                if l.account_id.user_type_id.type == 'receivable'
+            ),
+            None,
+        )
+
         self.assertIsNotNone(counterpart_mv_line)
         self.assertTrue(rcv_mv_line.reconciled)
         self.assertTrue(counterpart_mv_line.reconciled)
@@ -56,7 +60,7 @@ class TestBankStatementReconciliation(AccountingTestCase):
         # new creates a temporary record to apply the on_change afterwards
         invoice = self.i_model.new(vals)
         invoice._onchange_partner_id()
-        vals.update({'account_id': invoice.account_id.id})
+        vals['account_id'] = invoice.account_id.id
         invoice = self.i_model.create(vals)
 
         self.il_model.create({
@@ -81,11 +85,11 @@ class TestBankStatementReconciliation(AccountingTestCase):
         #journal = self.env.ref('l10n_be.bank_journal')
         bank_stmt = self.bs_model.create({'journal_id': journal.id})
 
-        bank_stmt_line = self.bsl_model.create({
-            'name': '_',
-            'statement_id': bank_stmt.id,
-            'partner_id': self.partner_agrolait.id,
-            'amount': st_line_amount,
-            })
-
-        return bank_stmt_line
+        return self.bsl_model.create(
+            {
+                'name': '_',
+                'statement_id': bank_stmt.id,
+                'partner_id': self.partner_agrolait.id,
+                'amount': st_line_amount,
+            }
+        )
