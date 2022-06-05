@@ -15,8 +15,7 @@ class BarcodeEventsMixin(models.AbstractModel):
 
     @api.onchange('_barcode_scanned')
     def _on_barcode_scanned(self):
-        barcode = self._barcode_scanned
-        if barcode:
+        if barcode := self._barcode_scanned:
             self._barcode_scanned = ""
             return self.on_barcode_scanned(barcode)
 

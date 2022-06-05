@@ -14,7 +14,8 @@ class ResUsers(models.Model):
     @api.multi
     def _compute_im_status(self):
         """ Compute the im_status of the users """
-        self.env.cr.execute("""
+        self.env.cr.execute(
+            """
             SELECT
                 user_id as id,
                 CASE WHEN age(now() AT TIME ZONE 'UTC', last_poll) > interval %s THEN 'offline'
@@ -23,7 +24,14 @@ class ResUsers(models.Model):
                 END as status
             FROM bus_presence
             WHERE user_id IN %s
-        """, ("%s seconds" % DISCONNECTION_TIMER, "%s seconds" % AWAY_TIMER, tuple(self.ids)))
-        res = dict(((status['id'], status['status']) for status in self.env.cr.dictfetchall()))
+        """,
+            (
+                f"{DISCONNECTION_TIMER} seconds",
+                f"{AWAY_TIMER} seconds",
+                tuple(self.ids),
+            ),
+        )
+
+        res = {status['id']: status['status'] for status in self.env.cr.dictfetchall()}
         for user in self:
             user.im_status = res.get(user.id, 'offline')

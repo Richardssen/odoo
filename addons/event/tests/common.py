@@ -42,11 +42,23 @@ class TestEventCommon(common.TransactionCase):
                 group_system.id])]
         })
 
-        self.event_0 = self.env['event.event'].create({
-            'name': 'TestEvent',
-            'date_begin': fields.Datetime.to_string(datetime.today() + timedelta(days=1)),
-            'date_end': fields.Datetime.to_string(datetime.today() + timedelta(days=15)),
-            'registration_ids': [(0, 0, {
-                'partner_id': self.user_eventuser.partner_id.id,
-            })]
-        })
+        self.event_0 = self.env['event.event'].create(
+            {
+                'name': 'TestEvent',
+                'date_begin': fields.Datetime.to_string(
+                    datetime.now() + timedelta(days=1)
+                ),
+                'date_end': fields.Datetime.to_string(
+                    datetime.now() + timedelta(days=15)
+                ),
+                'registration_ids': [
+                    (
+                        0,
+                        0,
+                        {
+                            'partner_id': self.user_eventuser.partner_id.id,
+                        },
+                    )
+                ],
+            }
+        )

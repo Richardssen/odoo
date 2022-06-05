@@ -204,7 +204,7 @@ class EventEvent(models.Model):
             date_end = fields.Datetime.from_string(event.date_end)
             dates = [fields.Date.to_string(fields.Datetime.context_timestamp(event, dt)) for dt in [date_begin, date_end] if dt]
             dates = sorted(set(dates))
-            result.append((event.id, '%s (%s)' % (event.name, ' - '.join(dates))))
+            result.append((event.id, f"{event.name} ({' - '.join(dates)})"))
         return result
 
     @api.one
@@ -338,15 +338,17 @@ class EventRegistration(models.Model):
         is meant to be inherited in various addons that sell events. """
         partner_id = registration.pop('partner_id', self.env.user.partner_id)
         event_id = registration.pop('event_id', False)
-        data = {
+        return {
             'name': registration.get('name', partner_id.name),
             'phone': registration.get('phone', partner_id.phone),
             'email': registration.get('email', partner_id.email),
             'partner_id': partner_id.id,
             'event_id': event_id and event_id.id or False,
+        } | {
+            key: registration[key]
+            for key in registration.keys()
+            if key in self._fields
         }
-        data.update({key: registration[key] for key in registration.keys() if key in self._fields})
-        return data
 
     @api.one
     def do_draft(self):
@@ -377,8 +379,7 @@ class EventRegistration(models.Model):
     @api.onchange('partner_id')
     def _onchange_partner(self):
         if self.partner_id:
-            contact_id = self.partner_id.address_get().get('contact', False)
-            if contact_id:
+            if contact_id := self.partner_id.address_get().get('contact', False):
                 contact = self.env['res.partner'].browse(contact_id)
                 self.name = contact.name or self.name
                 self.email = contact.email or self.email

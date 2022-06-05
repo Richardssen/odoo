@@ -15,7 +15,12 @@ ANONYMIZATION_DIRECTION = [('clear -> anonymized', 'clear -> anonymized'), ('ano
 def group(lst, cols):
     if isinstance(cols, basestring):
         cols = [cols]
-    return dict((k, [v for v in itr]) for k, itr in groupby(sorted(lst, key=itemgetter(*cols)), itemgetter(*cols)))
+    return {
+        k: list(itr)
+        for k, itr in groupby(
+            sorted(lst, key=itemgetter(*cols)), itemgetter(*cols)
+        )
+    }
 
 
 class IrModelFieldsAnonymization(models.Model):
@@ -36,12 +41,11 @@ class IrModelFieldsAnonymization(models.Model):
     def _get_global_state(self):
         field_ids = self.search([('state', '!=', 'not_existing')])
         if not field_ids or len(field_ids) == len(field_ids.filtered(lambda field: field.state == "clear")):
-            state = 'clear'  # all fields are clear
+            return 'clear'
         elif len(field_ids) == len(field_ids.filtered(lambda field: field.state == "anonymized")):
-            state = 'anonymized'  # all fields are anonymized
+            return 'anonymized'
         else:
-            state = 'unstable'  # fields are mixed: this should be fixed
-        return state
+            return 'unstable'
 
     @api.model
     def _check_write(self):
@@ -59,10 +63,22 @@ class IrModelFieldsAnonymization(models.Model):
     @api.model
     def _get_model_and_field_ids(self, vals):
         if vals.get('field_name') and vals.get('model_name'):
-            model_id = self.env['ir.model'].search([('model', '=', vals['model_name'])], limit=1).id
-            if model_id:
-                field_id = self.env['ir.model.fields'].search([('name', '=', vals['field_name']), ('model_id', '=', model_id)], limit=1).id
-                if field_id:
+            if (
+                model_id := self.env['ir.model']
+                .search([('model', '=', vals['model_name'])], limit=1)
+                .id
+            ):
+                if (
+                    field_id := self.env['ir.model.fields']
+                    .search(
+                        [
+                            ('name', '=', vals['field_name']),
+                            ('model_id', '=', model_id),
+                        ],
+                        limit=1,
+                    )
+                    .id
+                ):
                     return (model_id, field_id)
         return (False, False)
 
@@ -79,7 +95,7 @@ class IrModelFieldsAnonymization(models.Model):
     @api.multi
     def write(self, vals):
         # check field state: all should be clear before we can modify a field:
-        if not len(vals.keys()) == 1 and vals.get('state') == 'clear':
+        if len(vals.keys()) != 1 and vals.get('state') == 'clear':
             self._check_write()
         if vals.get('field_name') and vals.get('model_name'):
             vals['model_id'], vals['field_id'] = self._get_model_and_field_ids(vals)

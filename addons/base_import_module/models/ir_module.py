@@ -30,14 +30,12 @@ class IrModule(models.Model):
         terp = load_information_from_description_file(module, mod_path=path)
         values = self.get_values_from_terp(terp)
 
-        unmet_dependencies = set(terp['depends']).difference(installed_mods)
-        if unmet_dependencies:
+        if unmet_dependencies := set(terp['depends']).difference(installed_mods):
             raise UserError(_("Unmet module dependencies: %s") % ', '.join(unmet_dependencies))
 
-        mod = known_mods_names.get(module)
-        if mod:
+        if mod := known_mods_names.get(module):
             mod.write(dict(state='installed', **values))
-            mode = 'update' if not force else 'init'
+            mode = 'init' if force else 'update'
         else:
             assert terp.get('installable', True), "Module not installable"
             self.create(dict(name=module, state='installed', imported=True, **values))
@@ -65,7 +63,7 @@ class IrModule(models.Model):
                     full_path = opj(root, static_file)
                     with open(full_path, 'r') as fp:
                         data = fp.read().encode('base64')
-                    url_path = '/%s%s' % (module, full_path.split(path)[1].replace(os.path.sep, '/'))
+                    url_path = f"/{module}{full_path.split(path)[1].replace(os.path.sep, '/')}"
                     url_path = url_path.decode(sys.getfilesystemencoding())
                     filename = os.path.split(url_path)[1]
                     values = dict(
@@ -76,8 +74,13 @@ class IrModule(models.Model):
                         type='binary',
                         datas=data,
                     )
-                    attachment = IrAttachment.search([('url', '=', url_path), ('type', '=', 'binary'), ('res_model', '=', 'ir.ui.view')])
-                    if attachment:
+                    if attachment := IrAttachment.search(
+                        [
+                            ('url', '=', url_path),
+                            ('type', '=', 'binary'),
+                            ('res_model', '=', 'ir.ui.view'),
+                        ]
+                    ):
                         attachment.write(values)
                     else:
                         IrAttachment.create(values)

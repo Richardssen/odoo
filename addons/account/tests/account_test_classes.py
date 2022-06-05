@@ -24,7 +24,13 @@ class AccountingTestCase(HttpCase):
             if line in theorical_lines:
                 theorical_lines.remove(line)
             else:
-                raise ValidationError('Unexpected journal item. (label: %s, debit: %s, credit: %s)' % (aml.name, round(aml.debit, 2), round(aml.credit, 2)))
+                raise ValidationError(
+                    f'Unexpected journal item. (label: {aml.name}, debit: {round(aml.debit, 2)}, credit: {round(aml.credit, 2)})'
+                )
+
         if theorical_lines:
-            raise ValidationError('Remaining theorical line (not found). %s)' % ([(aml[0], aml[1], aml[2]) for aml in theorical_lines]))
+            raise ValidationError(
+                f'Remaining theorical line (not found). {[(aml[0], aml[1], aml[2]) for aml in theorical_lines]})'
+            )
+
         return True

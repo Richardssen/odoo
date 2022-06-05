@@ -22,8 +22,9 @@ class Board(models.Model):
 
         res = super(Board, self).fields_view_get(view_id=view_id, view_type=view_type, toolbar=toolbar, submenu=submenu)
 
-        custom_view = self.env['ir.ui.view.custom'].search([('user_id', '=', self.env.uid), ('ref_id', '=', view_id)], limit=1)
-        if custom_view:
+        if custom_view := self.env['ir.ui.view.custom'].search(
+            [('user_id', '=', self.env.uid), ('ref_id', '=', view_id)], limit=1
+        ):
             res.update({'custom_view_id': custom_view.id,
                         'arch': custom_view.arch})
         res.update({
@@ -45,9 +46,7 @@ class Board(models.Model):
             return node
 
         def encode(s):
-            if isinstance(s, unicode):
-                return s.encode('utf8')
-            return s
+            return s.encode('utf8') if isinstance(s, unicode) else s
 
         archnode = etree.fromstring(encode(arch))
         return etree.tostring(remove_unauthorized_children(archnode), pretty_print=True)

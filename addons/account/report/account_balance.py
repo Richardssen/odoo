@@ -20,7 +20,6 @@ class ReportTrialBalance(models.AbstractModel):
                 `balance`: total amount of balance,
         """
 
-        account_result = {}
         # Prepare sql query base on selected parameters from wizard
         tables, where_clause, where_params = self.env['account.move.line']._query_get()
         tables = tables.replace('"','')
@@ -35,16 +34,14 @@ class ReportTrialBalance(models.AbstractModel):
                    " FROM " + tables + " WHERE account_id IN %s " + filters + " GROUP BY account_id")
         params = (tuple(accounts.ids),) + tuple(where_params)
         self.env.cr.execute(request, params)
-        for row in self.env.cr.dictfetchall():
-            account_result[row.pop('id')] = row
-
+        account_result = {row.pop('id'): row for row in self.env.cr.dictfetchall()}
         account_res = []
         for account in accounts:
-            res = dict((fn, 0.0) for fn in ['credit', 'debit', 'balance'])
+            res = {fn: 0.0 for fn in ['credit', 'debit', 'balance']}
             currency = account.currency_id and account.currency_id or account.company_id.currency_id
             res['code'] = account.code
             res['name'] = account.name
-            if account.id in account_result.keys():
+            if account.id in account_result:
                 res['debit'] = account_result[account.id].get('debit')
                 res['credit'] = account_result[account.id].get('credit')
                 res['balance'] = account_result[account.id].get('balance')

@@ -14,7 +14,11 @@ class Attachment(models.Model):
     def search(self, args, offset=0, limit=0, order=None, count=False):
         """ Convert the search on real ids in the case it was asked on virtual ids, then call super() """
         args = list(args)
-        if any([leaf for leaf in args if leaf[0] == "res_model" and leaf[2] == 'calendar.event']):
+        if any(
+            leaf
+            for leaf in args
+            if leaf[0] == "res_model" and leaf[2] == 'calendar.event'
+        ):
             for index in range(len(args)):
                 if args[index][0] == "res_id" and isinstance(args[index][2], basestring):
                     args[index] = (args[index][0], args[index][1], get_real_ids(args[index][2]))

@@ -24,6 +24,10 @@ class AccountMoveLine(models.Model):
             taxes = [{'use_cash_basis': self.env['account.tax'].browse(vals['tax_line_id']).use_cash_basis}]
         if vals.get('tax_ids'):
             taxes = self.env['account.move.line'].resolve_2many_commands('tax_ids', vals['tax_ids'])
-        if taxes and any([tax['use_cash_basis'] for tax in taxes]) and not vals.get('tax_exigible'):
+        if (
+            taxes
+            and any(tax['use_cash_basis'] for tax in taxes)
+            and not vals.get('tax_exigible')
+        ):
             vals['tax_exigible'] = False
         return super(AccountMoveLine, self).create(vals)

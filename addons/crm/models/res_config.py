@@ -21,16 +21,18 @@ class CRMSettings(models.TransientModel):
     module_website_sign = fields.Boolean("Odoo Sign")
 
     def _find_default_lead_alias_id(self):
-        alias = self.env.ref('crm.mail_alias_lead_info', False)
-        if not alias:
-            alias = self.env['mail.alias'].search([
+        return self.env.ref('crm.mail_alias_lead_info', False) or self.env[
+            'mail.alias'
+        ].search(
+            [
                 ('alias_model_id.model', '=', 'crm.lead'),
                 ('alias_force_thread_id', '=', False),
                 ('alias_parent_model_id.model', '=', 'crm.team'),
                 ('alias_parent_thread_id', '=', False),
-                ('alias_defaults', '=', '{}')
-            ], limit=1)
-        return alias
+                ('alias_defaults', '=', '{}'),
+            ],
+            limit=1,
+        )
 
     @api.model
     def get_default_generate_sales_team_alias(self, fields):
@@ -53,8 +55,7 @@ class CRMSettings(models.TransientModel):
     @api.multi
     def set_default_alias_prefix(self):
         for record in self:
-            alias = self._find_default_lead_alias_id()
-            if alias:
+            if alias := self._find_default_lead_alias_id():
                 alias.write({'alias_name': record.alias_prefix})
             else:
                 self.env['mail.alias'].with_context(alias_model_name='crm.lead', alias_parent_model_name='crm.team').create({'alias_name': record.alias_prefix})

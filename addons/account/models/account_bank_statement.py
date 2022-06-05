@@ -63,8 +63,7 @@ class AccountBankStmtCloseCheck(models.TransientModel):
 
     @api.multi
     def validate(self):
-        bnk_stmt_id = self.env.context.get('active_id', False)
-        if bnk_stmt_id:
+        if bnk_stmt_id := self.env.context.get('active_id', False):
             self.env['account.bank.statement'].browse(bnk_stmt_id).button_confirm_bank()
         return {'type': 'ir.actions.act_window_close'}
 
@@ -74,7 +73,7 @@ class AccountBankStatement(models.Model):
     @api.one
     @api.depends('line_ids', 'balance_start', 'line_ids.amount', 'balance_end_real')
     def _end_balance(self):
-        self.total_entry_encoding = sum([line.amount for line in self.line_ids])
+        self.total_entry_encoding = sum(line.amount for line in self.line_ids)
         self.balance_end = self.balance_start + self.total_entry_encoding
         self.difference = self.balance_end_real - self.balance_end
 
@@ -91,22 +90,27 @@ class AccountBankStatement(models.Model):
     @api.one
     @api.depends('line_ids.journal_entry_ids')
     def _check_lines_reconciled(self):
-        self.all_lines_reconciled = all([line.journal_entry_ids.ids or line.account_id.id for line in self.line_ids])
+        self.all_lines_reconciled = all(
+            line.journal_entry_ids.ids or line.account_id.id
+            for line in self.line_ids
+        )
 
     @api.model
     def _default_journal(self):
         journal_type = self.env.context.get('journal_type', False)
         company_id = self.env['res.company']._company_default_get('account.bank.statement').id
         if journal_type:
-            journals = self.env['account.journal'].search([('type', '=', journal_type), ('company_id', '=', company_id)])
-            if journals:
+            if journals := self.env['account.journal'].search(
+                [('type', '=', journal_type), ('company_id', '=', company_id)]
+            ):
                 return journals[0]
         return self.env['account.journal']
 
     @api.multi
     def _get_opening_balance(self, journal_id):
-        last_bnk_stmt = self.search([('journal_id', '=', journal_id)], limit=1)
-        if last_bnk_stmt:
+        if last_bnk_stmt := self.search(
+            [('journal_id', '=', journal_id)], limit=1
+        ):
             return last_bnk_stmt.balance_end
         return 0
 
@@ -116,9 +120,9 @@ class AccountBankStatement(models.Model):
 
     @api.model
     def _default_opening_balance(self):
-        #Search last bank statement and set current opening balance as closing balance of previous one
-        journal_id = self._context.get('default_journal_id', False) or self._context.get('journal_id', False)
-        if journal_id:
+        if journal_id := self._context.get(
+            'default_journal_id', False
+        ) or self._context.get('journal_id', False):
             return self._get_opening_balance(journal_id)
         return 0
 
@@ -221,10 +225,10 @@ class AccountBankStatement(models.Model):
     @api.multi
     def check_confirm_bank(self):
         if self.journal_type == 'cash' and not self.currency_id.is_zero(self.difference):
-            action_rec = self.env['ir.model.data'].xmlid_to_object('account.action_view_account_bnk_stmt_check')
-            if action_rec:
-                action = action_rec.read([])[0]
-                return action
+            if action_rec := self.env['ir.model.data'].xmlid_to_object(
+                'account.action_view_account_bnk_stmt_check'
+            ):
+                return action_rec.read([])[0]
         return self.button_confirm_bank()
 
     @api.multi
@@ -299,7 +303,7 @@ class AccountBankStatement(models.Model):
 
         #try to assign partner to bank_statement_line
         stl_to_assign_partner = [stl.id for stl in st_lines_left if not stl.partner_id]
-        refs = list(set([st.name for st in st_lines_left if not stl.partner_id]))
+        refs = list({st.name for st in st_lines_left if not stl.partner_id})
         if st_lines_left and stl_to_assign_partner and refs:
             sql_query = """SELECT aml.partner_id, aml.ref, stl.id
                             FROM account_move_line aml
@@ -452,8 +456,7 @@ class AccountBankStatementLine(models.Model):
         automatic_reconciliation_entries = self.env['account.bank.statement.line']
         unreconciled = self.env['account.bank.statement.line']
         for stl in self:
-            res = stl.auto_reconcile()
-            if res:
+            if res := stl.auto_reconcile():
                 automatic_reconciliation_entries += stl
             else:
                 unreconciled += stl
@@ -603,8 +606,18 @@ class AccountBankStatementLine(models.Model):
                                     OR 
                                         ("""+acc_type+""" AND aml.reconciled = false)
                                     )"""
-        where_clause = where_clause + ' AND aml.partner_id = %(partner_id)s' if self.partner_id else where_clause
-        where_clause = where_clause + ' AND aml.id NOT IN %(excluded_ids)s' if excluded_ids else where_clause
+        where_clause = (
+            f'{where_clause} AND aml.partner_id = %(partner_id)s'
+            if self.partner_id
+            else where_clause
+        )
+
+        where_clause = (
+            f'{where_clause} AND aml.id NOT IN %(excluded_ids)s'
+            if excluded_ids
+            else where_clause
+        )
+
         if split:
             return select_clause, from_clause, where_clause
         return select_clause + from_clause + where_clause
@@ -637,19 +650,17 @@ class AccountBankStatementLine(models.Model):
             sql_query += " AND (aml.ref= %(ref)s or m.name = %(ref)s) \
                     ORDER BY temp_field_order, date_maturity asc, aml.id asc"
             self.env.cr.execute(sql_query, params)
-            results = self.env.cr.fetchone()
-            if results:
+            if results := self.env.cr.fetchone():
                 return self.env['account.move.line'].browse(results[0])
 
         # Look for a single move line with the same amount
-        field = currency and 'amount_residual_currency' or 'amount_residual'
+        field = 'amount_residual_currency' if currency else 'amount_residual'
         liquidity_field = currency and 'amount_currency' or amount > 0 and 'debit' or 'credit'
         sql_query = self._get_common_sql_query(excluded_ids=excluded_ids) + \
                 " AND ("+field+" = %(amount)s OR (acc.internal_type = 'liquidity' AND "+liquidity_field+" = %(amount)s)) \
                 ORDER BY date_maturity asc, aml.id asc LIMIT 1"
         self.env.cr.execute(sql_query, params)
-        results = self.env.cr.fetchone()
-        if results:
+        if results := self.env.cr.fetchone():
             return self.env['account.move.line'].browse(results[0])
 
         return self.env['account.move.line']
@@ -677,7 +688,7 @@ class AccountBankStatementLine(models.Model):
                     'partner_id': self.partner_id.id,
                     'ref': self.name,
                     }
-        field = currency and 'amount_residual_currency' or 'amount_residual'
+        field = 'amount_residual_currency' if currency else 'amount_residual'
         liquidity_field = currency and 'amount_currency' or amount > 0 and 'debit' or 'credit'
         # Look for structured communication match
         if self.name:
@@ -690,15 +701,14 @@ class AccountBankStatementLine(models.Model):
                 return False
 
         # Look for a single move line with the same partner, the same amount
-        if not match_recs:
-            if self.partner_id:
-                sql_query = self._get_common_sql_query() + \
-                " AND ("+field+" = %(amount)s OR (acc.internal_type = 'liquidity' AND "+liquidity_field+" = %(amount)s)) \
+        if not match_recs and self.partner_id:
+            sql_query = self._get_common_sql_query() + \
+            " AND ("+field+" = %(amount)s OR (acc.internal_type = 'liquidity' AND "+liquidity_field+" = %(amount)s)) \
                 ORDER BY date_maturity asc, aml.id asc"
-                self.env.cr.execute(sql_query, params)
-                match_recs = self.env.cr.dictfetchall()
-                if len(match_recs) > 1:
-                    return False
+            self.env.cr.execute(sql_query, params)
+            match_recs = self.env.cr.dictfetchall()
+            if len(match_recs) > 1:
+                return False
 
         if not match_recs:
             return False
@@ -741,7 +751,7 @@ class AccountBankStatementLine(models.Model):
         """
         ref = move_ref or ''
         if self.ref:
-            ref = move_ref + ' - ' + self.ref if move_ref else self.ref
+            ref = f'{move_ref} - {self.ref}' if move_ref else self.ref
         data = {
             'statement_line_id': self.id,
             'journal_id': self.statement_id.journal_id.id,

@@ -83,22 +83,27 @@ class ImBus(models.Model):
         domain.append(('channel', 'in', channels))
         notifications = self.sudo().search_read(domain)
         # list of notification to return
-        result = []
-        for notif in notifications:
-            result.append({
+        result = [
+            {
                 'id': notif['id'],
                 'channel': json.loads(notif['channel']),
                 'message': json.loads(notif['message']),
-            })
+            }
+            for notif in notifications
+        ]
 
-        if result or force_status:
-            partner_ids = options.get('bus_presence_partner_ids')
-            if partner_ids:
-                partners = self.env['res.partner'].browse(partner_ids)
-                result += [{
-                    'id': -1,
-                    'channel': (self._cr.dbname, 'bus.presence'),
-                    'message': {'id': r.id, 'im_status': r.im_status}} for r in partners]
+        if (
+            result
+            and (partner_ids := options.get('bus_presence_partner_ids'))
+            or not result
+            and force_status
+            and (partner_ids := options.get('bus_presence_partner_ids'))
+        ):
+            partners = self.env['res.partner'].browse(partner_ids)
+            result += [{
+                'id': -1,
+                'channel': (self._cr.dbname, 'bus.presence'),
+                'message': {'id': r.id, 'im_status': r.im_status}} for r in partners]
         return result
 
 
@@ -119,7 +124,7 @@ class ImDispatch(object):
             current = threading.current_thread()
             current._Thread__daemonic = True
             # rename the thread to avoid tests waiting for a longpolling
-            current.setName("openerp.longpolling.request.%s" % current.ident)
+            current.setName(f"openerp.longpolling.request.{current.ident}")
 
         registry = odoo.registry(dbname)
 
@@ -150,9 +155,7 @@ class ImDispatch(object):
             cr.execute("listen imbus")
             cr.commit();
             while True:
-                if select.select([conn], [], [], TIMEOUT) == ([], [], []):
-                    pass
-                else:
+                if select.select([conn], [], [], TIMEOUT) != ([], [], []):
                     conn.poll()
                     channels = []
                     while conn.notifies:
@@ -184,7 +187,7 @@ class ImDispatch(object):
         else:
             # threaded mode
             self.Event = threading.Event
-            t = threading.Thread(name="%s.Bus" % __name__, target=self.run)
+            t = threading.Thread(name=f"{__name__}.Bus", target=self.run)
             t.daemon = True
             t.start()
         return self

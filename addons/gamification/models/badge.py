@@ -218,7 +218,7 @@ class GamificationBadge(models.Model):
         elif status_code == self.TOO_MANY:
             raise exceptions.UserError(_('You have already sent this badge too many time this month.'))
         else:
-            _logger.error("Unknown badge status code: %s" % status_code)
+            _logger.error(f"Unknown badge status code: {status_code}")
         return False
 
     def _can_grant_badge(self):

@@ -14,8 +14,7 @@ class AccountInvoiceRefund(models.TransientModel):
     @api.model
     def _get_reason(self):
         context = dict(self._context or {})
-        active_id = context.get('active_id', False)
-        if active_id:
+        if active_id := context.get('active_id', False):
             inv = self.env['account.invoice'].browse(active_id)
             return inv.name
         return ''
@@ -31,10 +30,10 @@ class AccountInvoiceRefund(models.TransientModel):
     @api.one
     def _get_refund_only(self):
         invoice_id = self.env['account.invoice'].browse(self._context.get('active_id',False))
-        if len(invoice_id.payment_move_line_ids) != 0 and invoice_id.state != 'paid':
-            self.refund_only = True
-        else:
-            self.refund_only = False
+        self.refund_only = (
+            len(invoice_id.payment_move_line_ids) != 0
+            and invoice_id.state != 'paid'
+        )
 
 
     @api.multi
@@ -115,7 +114,7 @@ class AccountInvoiceRefund(models.TransientModel):
                 body = description
                 refund.message_post(body=body, subject=subject)
         if xml_id:
-            result = self.env.ref('account.%s' % (xml_id)).read()[0]
+            result = self.env.ref(f'account.{xml_id}').read()[0]
             invoice_domain = safe_eval(result['domain'])
             invoice_domain.append(('id', 'in', created_inv))
             result['domain'] = invoice_domain

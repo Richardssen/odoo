@@ -13,7 +13,7 @@ class BaseConfigSettings(models.TransientModel):
 
     @api.model
     def get_uri(self):
-        return "%s/auth_oauth/signin" % (self.env['ir.config_parameter'].get_param('web.base.url'))
+        return f"{self.env['ir.config_parameter'].get_param('web.base.url')}/auth_oauth/signin"
 
     def _compute_server_uri(self):
         uri = self.get_uri()

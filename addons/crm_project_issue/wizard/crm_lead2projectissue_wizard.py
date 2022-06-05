@@ -11,8 +11,7 @@ class CrmLeadToProjectIssueWizard(models.TransientModel):
     @api.model
     def default_get(self, fields):
         result = super(CrmLeadToProjectIssueWizard, self).default_get(fields)
-        lead_id = self.env.context.get('active_id')
-        if lead_id:
+        if lead_id := self.env.context.get('active_id'):
             result['lead_id'] = lead_id
         return result
 

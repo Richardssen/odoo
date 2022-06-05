@@ -16,12 +16,18 @@ class AccountCommonReport(models.TransientModel):
                                     ], string='Target Moves', required=True, default='posted')
 
     def _build_contexts(self, data):
-        result = {}
-        result['journal_ids'] = 'journal_ids' in data['form'] and data['form']['journal_ids'] or False
-        result['state'] = 'target_move' in data['form'] and data['form']['target_move'] or ''
-        result['date_from'] = data['form']['date_from'] or False
-        result['date_to'] = data['form']['date_to'] or False
-        result['strict_range'] = True if result['date_from'] else False
+        result = {
+            'journal_ids': 'journal_ids' in data['form']
+            and data['form']['journal_ids']
+            or False,
+            'state': 'target_move' in data['form']
+            and data['form']['target_move']
+            or '',
+            'date_from': data['form']['date_from'] or False,
+            'date_to': data['form']['date_to'] or False,
+        }
+
+        result['strict_range'] = bool(result['date_from'])
         return result
 
     def _print_report(self, data):
@@ -30,8 +36,7 @@ class AccountCommonReport(models.TransientModel):
     @api.multi
     def check_report(self):
         self.ensure_one()
-        data = {}
-        data['ids'] = self.env.context.get('active_ids', [])
+        data = {'ids': self.env.context.get('active_ids', [])}
         data['model'] = self.env.context.get('active_model', 'ir.ui.menu')
         data['form'] = self.read(['date_from', 'date_to', 'journal_ids', 'target_move'])[0]
         used_context = self._build_contexts(data)

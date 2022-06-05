@@ -51,7 +51,7 @@ class account_abstract_payment(models.AbstractModel):
     @api.one
     @api.constrains('amount')
     def _check_amount(self):
-        if not self.amount > 0.0:
+        if self.amount <= 0.0:
             raise ValidationError('The payment amount must be strictly positive.')
 
     @api.one
@@ -71,7 +71,12 @@ class account_abstract_payment(models.AbstractModel):
             payment_methods = self.payment_type == 'inbound' and self.journal_id.inbound_payment_method_ids or self.journal_id.outbound_payment_method_ids
             self.payment_method_id = payment_methods and payment_methods[0] or False
             # Set payment method domain (restrict to methods enabled for the journal and to selected payment type)
-            payment_type = self.payment_type in ('outbound', 'transfer') and 'outbound' or 'inbound'
+            payment_type = (
+                'outbound'
+                if self.payment_type in ('outbound', 'transfer')
+                else 'inbound'
+            )
+
             return {'domain': {'payment_method_id': [('payment_type', '=', payment_type), ('id', 'in', payment_methods.ids)]}}
         return {}
 
@@ -87,12 +92,15 @@ class account_abstract_payment(models.AbstractModel):
         if all(inv.currency_id == payment_currency for inv in invoices):
             total = sum(invoices.mapped('residual_signed'))
         else:
-            total = 0
-            for inv in invoices:
-                if inv.company_currency_id != payment_currency:
-                    total += inv.company_currency_id.with_context(date=self.payment_date).compute(inv.residual_company_signed, payment_currency)
-                else:
-                    total += inv.residual_company_signed
+            total = sum(
+                inv.company_currency_id.with_context(
+                    date=self.payment_date
+                ).compute(inv.residual_company_signed, payment_currency)
+                if inv.company_currency_id != payment_currency
+                else inv.residual_company_signed
+                for inv in invoices
+            )
+
         return abs(total)
 
 
@@ -256,7 +264,12 @@ class account_payment(models.Model):
             invoice = invoice_defaults[0]
             rec['communication'] = invoice['reference'] or invoice['name'] or invoice['number']
             rec['currency_id'] = invoice['currency_id'][0]
-            rec['payment_type'] = invoice['type'] in ('out_invoice', 'in_refund') and 'inbound' or 'outbound'
+            rec['payment_type'] = (
+                'inbound'
+                if invoice['type'] in ('out_invoice', 'in_refund')
+                else 'outbound'
+            )
+
             rec['partner_type'] = MAP_INVOICE_TYPE_PARTNER_TYPE[invoice['type']]
             rec['partner_id'] = invoice['partner_id'][0]
             rec['amount'] = invoice['residual']
@@ -341,17 +354,16 @@ class account_payment(models.Model):
             # Use the right sequence to set the name
             if rec.payment_type == 'transfer':
                 sequence_code = 'account.payment.transfer'
-            else:
-                if rec.partner_type == 'customer':
-                    if rec.payment_type == 'inbound':
-                        sequence_code = 'account.payment.customer.invoice'
-                    if rec.payment_type == 'outbound':
-                        sequence_code = 'account.payment.customer.refund'
-                if rec.partner_type == 'supplier':
-                    if rec.payment_type == 'inbound':
-                        sequence_code = 'account.payment.supplier.refund'
-                    if rec.payment_type == 'outbound':
-                        sequence_code = 'account.payment.supplier.invoice'
+            elif rec.partner_type == 'customer':
+                if rec.payment_type == 'inbound':
+                    sequence_code = 'account.payment.customer.invoice'
+                if rec.payment_type == 'outbound':
+                    sequence_code = 'account.payment.customer.refund'
+            elif rec.partner_type == 'supplier':
+                if rec.payment_type == 'inbound':
+                    sequence_code = 'account.payment.supplier.refund'
+                if rec.payment_type == 'outbound':
+                    sequence_code = 'account.payment.supplier.invoice'
             rec.name = self.env['ir.sequence'].with_context(ir_sequence_date=rec.payment_date).next_by_code(sequence_code)
 
             # Create the journal entry
@@ -373,7 +385,10 @@ class account_payment(models.Model):
         """
         aml_obj = self.env['account.move.line'].with_context(check_move_validity=False)
         invoice_currency = False
-        if self.invoice_ids and all([x.currency_id == self.invoice_ids[0].currency_id for x in self.invoice_ids]):
+        if self.invoice_ids and all(
+            x.currency_id == self.invoice_ids[0].currency_id
+            for x in self.invoice_ids
+        ):
             #if all the invoices selected share the same currency, record the paiement in that currency too
             invoice_currency = self.invoice_ids[0].currency_id
         debit, credit, amount_currency, currency_id = aml_obj.with_context(date=self.payment_date).compute_amount_fields(amount, self.currency_id, self.company_id.currency_id, invoice_currency)
@@ -405,7 +420,7 @@ class account_payment(models.Model):
         self.invoice_ids.register_payment(counterpart_aml)
 
         #Write counterpart lines
-        if not self.currency_id != self.company_id.currency_id:
+        if self.currency_id == self.company_id.currency_id:
             amount_currency = 0
         liquidity_aml_dict = self._get_shared_move_line_vals(credit, debit, -amount_currency, move.id, False)
         liquidity_aml_dict.update(self._get_liquidity_move_line_vals(-amount))
@@ -495,8 +510,8 @@ class account_payment(models.Model):
                 name += ': '
                 for inv in invoice:
                     if inv.move_id:
-                        name += inv.number + ', '
-                name = name[:len(name)-2] 
+                        name += f'{inv.number}, '
+                name = name[:len(name)-2]
         return {
             'name': name,
             'account_id': self.destination_account_id.id,
@@ -521,9 +536,10 @@ class account_payment(models.Model):
         if self.journal_id.currency_id and self.currency_id != self.journal_id.currency_id:
             amount = self.currency_id.with_context(date=self.payment_date).compute(amount, self.journal_id.currency_id)
             debit, credit, amount_currency, dummy = self.env['account.move.line'].with_context(date=self.payment_date).compute_amount_fields(amount, self.journal_id.currency_id, self.company_id.currency_id)
-            vals.update({
+            vals |= {
                 'amount_currency': amount_currency,
                 'currency_id': self.journal_id.currency_id.id,
-            })
+            }
+
 
         return vals

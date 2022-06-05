@@ -16,7 +16,7 @@ class SignupError(Exception):
 def random_token():
     # the token has an entropy of about 120 bits (6 bits/char * 20 chars)
     chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-    return ''.join(random.SystemRandom().choice(chars) for i in xrange(20))
+    return ''.join(random.SystemRandom().choice(chars) for _ in xrange(20))
 
 def now(**kwargs):
     dt = datetime.now() + timedelta(**kwargs)
@@ -72,7 +72,7 @@ class ResPartner(models.Model):
             else:
                 continue        # no signup token, no user, thus no signup url!
 
-            fragment = dict()
+            fragment = {}
             base = '/web#'
             if action == '/mail/view':
                 base = '/mail/view?'
@@ -90,7 +90,10 @@ class ResPartner(models.Model):
             if fragment:
                 query['redirect'] = base + werkzeug.url_encode(fragment)
 
-            res[partner.id] = urljoin(base_url, "/web/%s?%s" % (route, werkzeug.url_encode(query)))
+            res[partner.id] = urljoin(
+                base_url, f"/web/{route}?{werkzeug.url_encode(query)}"
+            )
+
         return res
 
     @api.multi

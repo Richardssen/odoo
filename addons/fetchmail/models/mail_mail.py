@@ -12,14 +12,12 @@ class MailMail(models.Model):
 
     @api.model
     def create(self, values):
-        fetchmail_server_id = self.env.context.get('fetchmail_server_id')
-        if fetchmail_server_id:
+        if fetchmail_server_id := self.env.context.get('fetchmail_server_id'):
             values['fetchmail_server_id'] = fetchmail_server_id
         return super(MailMail, self).create(values)
 
     @api.multi
     def write(self, values):
-        fetchmail_server_id = self.env.context.get('fetchmail_server_id')
-        if fetchmail_server_id:
+        if fetchmail_server_id := self.env.context.get('fetchmail_server_id'):
             values['fetchmail_server_id'] = fetchmail_server_id
         return super(MailMail, self).write(values)

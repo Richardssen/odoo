@@ -18,7 +18,7 @@ class base_action_rule_test(common.TransactionCase):
             'name': "Lead Test",
             'user_id': self.user_admin.id,
         }
-        vals.update(kwargs)
+        vals |= kwargs
         return self.env['base.action.rule.lead.test'].create(vals)
 
     def test_00_check_to_state_open_pre(self):

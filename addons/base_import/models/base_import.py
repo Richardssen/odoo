@@ -48,7 +48,7 @@ FILE_TYPE_DICT = {
     'application/vnd.oasis.opendocument.spreadsheet': ('ods', odf_ods_reader, 'odfpy')
 }
 EXTENSIONS = {
-    '.' + ext: handler
+    f'.{ext}': handler
     for mime, (ext, handler, req) in FILE_TYPE_DICT.iteritems()
 }
 
@@ -172,7 +172,7 @@ class Import(models.TransientModel):
         (file_extension, handler, req) = FILE_TYPE_DICT.get(mimetype, (None, None, None))
         if handler:
             try:
-                return getattr(self, '_read_' + file_extension)(options)
+                return getattr(self, f'_read_{file_extension}')(options)
             except Exception:
                 _logger.warn("Failed to read file '%s' (transient id %d) using guessed mimetype %s", self.file_name or '<unknown>', self.id, mimetype)
 
@@ -180,7 +180,7 @@ class Import(models.TransientModel):
         (file_extension, handler, req) = FILE_TYPE_DICT.get(self.file_type, (None, None, None))
         if handler:
             try:
-                return getattr(self, '_read_' + file_extension)(options)
+                return getattr(self, f'_read_{file_extension}')(options)
             except Exception:
                 _logger.warn("Failed to read file '%s' (transient id %d) using user-provided mimetype %s", self.file_name or '<unknown>', self.id, self.file_type)
 
@@ -191,7 +191,7 @@ class Import(models.TransientModel):
             p, ext = os.path.splitext(self.file_name)
             if ext in EXTENSIONS:
                 try:
-                    return getattr(self, '_read_' + ext[1:])(options)
+                    return getattr(self, f'_read_{ext[1:]}')(options)
                 except Exception:
                     _logger.warn("Failed to read file '%s' (transient id %s) using file extension", self.file_name, self.id)
 
@@ -231,10 +231,14 @@ class Import(models.TransientModel):
                     values.append(u'True' if cell.value else u'False')
                 elif cell.ctype is xlrd.XL_CELL_ERROR:
                     raise ValueError(
-                        _("Error cell found while reading XLS/XLSX file: %s") %
-                        xlrd.error_text_from_code.get(
-                            cell.value, "unknown error code %s" % cell.value)
+                        (
+                            _("Error cell found while reading XLS/XLSX file: %s")
+                            % xlrd.error_text_from_code.get(
+                                cell.value, f"unknown error code {cell.value}"
+                            )
+                        )
                     )
+
                 else:
                     values.append(cell.value)
             if any(x for x in values if x.strip()):
@@ -385,7 +389,7 @@ class Import(models.TransientModel):
     def _find_type_from_preview(self, options, preview):
         type_fields = []
         if preview:
-            for column in range(0, len(preview[0])):
+            for column in range(len(preview[0])):
                 preview_values = [value[column].strip() for value in preview]
                 type_field = self._try_match_column(preview_values, options)
                 type_fields.append(type_field)
@@ -571,19 +575,20 @@ class Import(models.TransientModel):
             return False
         if len(split_value) == 1:
             if float_regex.search(split_value[0]) is not None:
-                return split_value[0] if not negative else '-' + split_value[0]
-            return False
+                return f'-{split_value[0]}' if negative else split_value[0]
         else:
-            # String has been split in 2, locate which index contains the float and which does not
-            currency_index = 0
-            if float_regex.search(split_value[0]) is not None:
-                currency_index = 1
+            currency_index = 1 if float_regex.search(split_value[0]) is not None else 0
             # Check that currency exists
             currency = self.env['res.currency'].search([('symbol', '=', split_value[currency_index].strip())])
             if len(currency):
-                return split_value[currency_index + 1 % 2] if not negative else '-' + split_value[currency_index + 1 % 2]
-            # Otherwise it is not a float with a currency symbol
-            return False
+                return (
+                    f'-{split_value[currency_index + 1 % 2]}'
+                    if negative
+                    else split_value[currency_index + 1 % 2]
+                )
+
+
+        return False
 
     @api.model
     def _parse_float_from_data(self, data, index, name, options):
@@ -596,7 +601,11 @@ class Import(models.TransientModel):
             old_value = line[index]
             line[index] = self._remove_currency_symbol(line[index])
             if line[index] is False:
-                raise ValueError(_("Column %s contains incorrect values (value: %s)" % (name, old_value)))
+                raise ValueError(
+                    _(
+                        f"Column {name} contains incorrect values (value: {old_value})"
+                    )
+                )
 
     @api.multi
     def _parse_import_data(self, data, import_fields, options):

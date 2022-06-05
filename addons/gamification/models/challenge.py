@@ -141,9 +141,9 @@ class Challenge(models.Model):
         """
         for challenge in self:
             last = fields.Datetime.from_string(challenge.last_report_date).date()
-            offset = self.REPORT_OFFSETS.get(challenge.report_message_frequency)
-
-            if offset:
+            if offset := self.REPORT_OFFSETS.get(
+                challenge.report_message_frequency
+            ):
                 challenge.next_report_date = fields.Date.to_string(last + offset)
             else:
                 challenge.next_report_date = False
@@ -207,20 +207,14 @@ class Challenge(models.Model):
         - Create the missing goals (eg: modified the challenge to add lines)
         - Update every running challenge
         """
-        # start scheduled challenges
-        planned_challenges = self.search([
-            ('state', '=', 'draft'),
-            ('start_date', '<=', fields.Date.today())
-        ])
-        if planned_challenges:
+        if planned_challenges := self.search(
+            [('state', '=', 'draft'), ('start_date', '<=', fields.Date.today())]
+        ):
             planned_challenges.write({'state': 'inprogress'})
 
-        # close scheduled challenges
-        scheduled_challenges = self.search([
-            ('state', '=', 'inprogress'),
-            ('end_date', '<', fields.Date.today())
-        ])
-        if scheduled_challenges:
+        if scheduled_challenges := self.search(
+            [('state', '=', 'inprogress'), ('end_date', '<', fields.Date.today())]
+        ):
             scheduled_challenges.write({'state': 'done'})
 
         records = self.browse(ids) if ids else self.search([('state', '=', 'inprogress')])
@@ -348,7 +342,7 @@ class Challenge(models.Model):
                 if end_date:
                     date_clause += "AND g.end_date = %s"
                     query_params.append(end_date)
-            
+
                 query = """SELECT u.id AS user_id
                              FROM res_users u
                         LEFT JOIN gamification_goal g
@@ -360,8 +354,10 @@ class Challenge(models.Model):
                 user_with_goal_ids = {it for [it] in self.env.cr._obj}
 
                 participant_user_ids = set(challenge.user_ids.ids)
-                user_squating_challenge_ids = user_with_goal_ids - participant_user_ids
-                if user_squating_challenge_ids:
+                if (
+                    user_squating_challenge_ids := user_with_goal_ids
+                    - participant_user_ids
+                ):
                     # users that used to match the challenge 
                     Goals.search([
                         ('challenge_id', '=', challenge.id),
@@ -467,10 +463,11 @@ class Challenge(models.Model):
                 'computation_mode': line.definition_id.computation_mode,
                 'monetary': line.definition_id.monetary,
                 'suffix': line.definition_id.suffix,
-                'action': True if line.definition_id.action_id else False,
+                'action': bool(line.definition_id.action_id),
                 'display_mode': line.definition_id.display_mode,
                 'target': line.target_goal,
             }
+
             domain = [
                 ('line_id', '=', line.id),
                 ('state', '!=', 'draft'),
@@ -496,7 +493,7 @@ class Challenge(models.Model):
 
                 if goal.state != 'reached':
                     return []
-                line_data.update(goal.read(['id', 'current', 'completeness', 'state'])[0])
+                line_data |= goal.read(['id', 'current', 'completeness', 'state'])[0]
                 res_lines.append(line_data)
                 continue
 

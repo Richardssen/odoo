@@ -12,10 +12,9 @@ class PlannerAccount(models.Model):
         return planner
 
     def _prepare_planner_account_data(self):
-        values = {
+        return {
             'company_id': self.env.user.company_id,
             'is_coa_installed': bool(self.env['account.account'].search_count([])),
             'payment_term': self.env['account.payment.term'].search([]),
-            'supplier_menu_id': self.env.ref('account.menu_account_supplier').id
+            'supplier_menu_id': self.env.ref('account.menu_account_supplier').id,
         }
-        return values

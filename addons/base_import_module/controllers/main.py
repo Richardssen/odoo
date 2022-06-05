@@ -41,5 +41,5 @@ class ImportModule(Controller):
     @webservice
     def upload(self, mod_file=None, force='', **kw):
         self.check_user()
-        force = True if force == '1' else False
+        force = force == '1'
         return request.env['ir.module.module'].import_zipfile(mod_file, force=force)[0]

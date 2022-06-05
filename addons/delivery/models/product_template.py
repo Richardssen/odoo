@@ -15,7 +15,8 @@ class ProductTemplate(models.Model):
         if vals.get('list_price'):
             DeliveryCarrier = self.env['delivery.carrier']
             for template in self:
-                carrier = DeliveryCarrier.search([('product_id', 'in', template.product_variant_ids.ids)])
-                if carrier:
+                if carrier := DeliveryCarrier.search(
+                    [('product_id', 'in', template.product_variant_ids.ids)]
+                ):
                     carrier.create_price_rules()
         return res

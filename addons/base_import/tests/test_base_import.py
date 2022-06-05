@@ -43,7 +43,9 @@ class BaseImportCase(TransactionCase):
 class TestBasicFields(BaseImportCase):
 
     def get_fields(self, field):
-        return self.env['base_import.import'].get_fields('base_import.tests.models.' + field)
+        return self.env['base_import.import'].get_fields(
+            f'base_import.tests.models.{field}'
+        )
 
     def test_base(self):
         """ A basic field is not required """
@@ -93,7 +95,9 @@ class TestBasicFields(BaseImportCase):
 class TestO2M(BaseImportCase):
 
     def get_fields(self, field):
-        return self.env['base_import.import'].get_fields('base_import.tests.models.' + field)
+        return self.env['base_import.import'].get_fields(
+            f'base_import.tests.models.{field}'
+        )
 
     def test_shallow(self):
         self.assertEqualFields(self.get_fields('o2m'), make_field(field_type='one2many', fields=[
@@ -194,13 +198,14 @@ class TestMatchHeadersMultiple(TransactionCase):
 class TestPreview(TransactionCase):
 
     def make_import(self):
-        import_wizard = self.env['base_import.import'].create({
-            'res_model': 'res.users',
-            'file': u"로그인,언어\nbob,1\n".encode('euc_kr'),
-            'file_type': 'text/csv',
-            'file_name': 'kr_data.csv',
-        })
-        return import_wizard
+        return self.env['base_import.import'].create(
+            {
+                'res_model': 'res.users',
+                'file': u"로그인,언어\nbob,1\n".encode('euc_kr'),
+                'file_type': 'text/csv',
+                'file_name': 'kr_data.csv',
+            }
+        )
 
     @mute_logger('odoo.addons.base_import.models.base_import')
     def test_encoding(self):

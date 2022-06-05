@@ -59,10 +59,10 @@ class FetchmailServer(models.Model):
     @api.onchange('type', 'is_ssl', 'object_id')
     def onchange_server_type(self):
         self.port = 0
-        if self.type == 'pop':
-            self.port = self.is_ssl and 995 or 110
-        elif self.type == 'imap':
-            self.port = self.is_ssl and 993 or 143
+        if self.type == 'imap':
+            self.port = 993 if self.is_ssl else 143
+        elif self.type == 'pop':
+            self.port = 995 if self.is_ssl else 110
         else:
             self.server = ''
 

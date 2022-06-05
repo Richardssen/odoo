@@ -53,7 +53,7 @@ class CashBoxIn(CashBox):
             'journal_id': record.journal_id.id,
             'amount': self.amount or 0.0,
             'account_id': record.journal_id.company_id.transfer_account_id.id,
-            'ref': '%s' % (self.ref or ''),
+            'ref': f"{self.ref or ''}",
             'name': self.name,
         }
 

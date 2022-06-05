@@ -17,8 +17,16 @@ class AccountInvoice(models.Model):
         result = super(AccountInvoice, self).action_move_create()
         for inv in self:
             if inv.number:
-                asset_ids = self.env['account.asset.asset'].sudo().search([('invoice_id', '=', inv.id), ('company_id', '=', inv.company_id.id)])
-                if asset_ids:
+                if (
+                    asset_ids := self.env['account.asset.asset']
+                    .sudo()
+                    .search(
+                        [
+                            ('invoice_id', '=', inv.id),
+                            ('company_id', '=', inv.company_id.id),
+                        ]
+                    )
+                ):
                     asset_ids.write({'active': False})
             context = dict(self.env.context)
             # Within the context of an invoice,
@@ -44,8 +52,7 @@ class AccountInvoiceLine(models.Model):
         self.asset_mrr = 0
         self.asset_start_date = False
         self.asset_end_date = False
-        cat = self.asset_category_id
-        if cat:
+        if cat := self.asset_category_id:
             months = cat.method_number * cat.method_period
             if self.invoice_id.type in ['out_invoice', 'out_refund']:
                 self.asset_mrr = self.price_subtotal_signed / months
@@ -70,7 +77,7 @@ class AccountInvoiceLine(models.Model):
                 'invoice_id': self.invoice_id.id,
             }
             changed_vals = self.env['account.asset.asset'].onchange_category_id_values(vals['category_id'])
-            vals.update(changed_vals['value'])
+            vals |= changed_vals['value']
             asset = self.env['account.asset.asset'].create(vals)
             if self.asset_category_id.open_asset:
                 asset.validate()

@@ -13,9 +13,7 @@ lib_name = 'odoo'
 
 
 def py2exe_datafiles():
-    data_files = {}
-    data_files['Microsoft.VC90.CRT'] = glob('C:\Microsoft.VC90.CRT\*.*')
-
+    data_files = {'Microsoft.VC90.CRT': glob('C:\Microsoft.VC90.CRT\*.*')}
     for root, dirnames, filenames in os.walk('odoo'):
         for filename in filenames:
             if not re.match(r'.*(\.pyc|\.pyo|\~)$', filename):
@@ -53,69 +51,68 @@ def py2exe_datafiles():
 
 
 def py2exe_options():
-    if os.name == 'nt':
-        import py2exe
-        return {
-            'console': [
-                {'script': 'odoo-bin', 'icon_resources': [
-                    (1, join('setup', 'win32', 'static', 'pixmaps', 'openerp-icon.ico'))
-                ]},
-            ],
-            'options': {
-                'py2exe': {
-                    'skip_archive': 1,
-                    'optimize': 0,  # Keep the assert running as the integrated tests rely on them.
-                    'dist_dir': 'dist',
-                    'packages': [
-                        'asynchat', 'asyncore',
-                        'commands',
-                        'dateutil',
-                        'decimal',
-                        'decorator',
-                        'docutils',
-                        'email',
-                        'encodings',
-                        'HTMLParser',
-                        'imaplib',
-                        'jinja2',
-                        'lxml', 'lxml._elementpath', 'lxml.builder', 'lxml.etree', 'lxml.objectify',
-                        'mako',
-                        'markupsafe',
-                        'mock',
-                        'ofxparse',
-                        'odoo',
-                        'openid',
-                        'passlib',
-                        'PIL',
-                        'poplib',
-                        'psutil',
-                        'pychart',
-                        'pydot',
-                        'pyparsing',
-                        'pyPdf',
-                        'pytz',
-                        'reportlab',
-                        'requests',
-                        'select',
-                        'smtplib',
-                        'suds',
-                        'uuid',
-                        'vatnumber',
-                        'vobject',
-                        'win32service', 'win32serviceutil',
-                        'xlrd',
-                        'xlsxwriter',
-                        'xlwt',
-                        'xml', 'xml.dom',
-                        'yaml',
-                    ],
-                    'excludes': ['Tkconstants', 'Tkinter', 'tcl'],
-                }
-            },
-            'data_files': py2exe_datafiles()
-        }
-    else:
+    if os.name != 'nt':
         return {}
+    import py2exe
+    return {
+        'console': [
+            {'script': 'odoo-bin', 'icon_resources': [
+                (1, join('setup', 'win32', 'static', 'pixmaps', 'openerp-icon.ico'))
+            ]},
+        ],
+        'options': {
+            'py2exe': {
+                'skip_archive': 1,
+                'optimize': 0,  # Keep the assert running as the integrated tests rely on them.
+                'dist_dir': 'dist',
+                'packages': [
+                    'asynchat', 'asyncore',
+                    'commands',
+                    'dateutil',
+                    'decimal',
+                    'decorator',
+                    'docutils',
+                    'email',
+                    'encodings',
+                    'HTMLParser',
+                    'imaplib',
+                    'jinja2',
+                    'lxml', 'lxml._elementpath', 'lxml.builder', 'lxml.etree', 'lxml.objectify',
+                    'mako',
+                    'markupsafe',
+                    'mock',
+                    'ofxparse',
+                    'odoo',
+                    'openid',
+                    'passlib',
+                    'PIL',
+                    'poplib',
+                    'psutil',
+                    'pychart',
+                    'pydot',
+                    'pyparsing',
+                    'pyPdf',
+                    'pytz',
+                    'reportlab',
+                    'requests',
+                    'select',
+                    'smtplib',
+                    'suds',
+                    'uuid',
+                    'vatnumber',
+                    'vobject',
+                    'win32service', 'win32serviceutil',
+                    'xlrd',
+                    'xlsxwriter',
+                    'xlwt',
+                    'xml', 'xml.dom',
+                    'yaml',
+                ],
+                'excludes': ['Tkconstants', 'Tkinter', 'tcl'],
+            }
+        },
+        'data_files': py2exe_datafiles()
+    }
 
 
 setup(
@@ -130,7 +127,7 @@ setup(
     license=license,
     scripts=['setup/odoo'],
     packages=find_packages(),
-    package_dir={'%s' % lib_name: 'odoo'},
+    package_dir={f'{lib_name}': 'odoo'},
     include_package_data=True,
     install_requires=[
         'babel >= 1.0',
@@ -175,5 +172,5 @@ setup(
     tests_require=[
         'mock',
     ],
-    **py2exe_options()
+    **py2exe_options(),
 )

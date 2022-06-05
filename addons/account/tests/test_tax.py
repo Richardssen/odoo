@@ -132,7 +132,11 @@ class TestTax(AccountTestUsers):
         self.assertEquals(aml_percent_tax.credit, 20)
         self.assertEquals(len(aml_fixed_tax_bis), 1)
         self.assertEquals(aml_fixed_tax_bis.credit, 15)
-        
-        aml_with_taxes = move.line_ids.filtered(lambda l: set(l.tax_ids.ids) == set([self.group_tax.id, self.fixed_tax_bis.id]))
+
+        aml_with_taxes = move.line_ids.filtered(
+            lambda l: set(l.tax_ids.ids)
+            == {self.group_tax.id, self.fixed_tax_bis.id}
+        )
+
         self.assertEquals(len(aml_with_taxes), 1)
         self.assertEquals(aml_with_taxes.credit, 190)

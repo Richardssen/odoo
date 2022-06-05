@@ -47,24 +47,42 @@ class TestReconciliation(AccountingTestCase):
             'type': type,
             'date_invoice': time.strftime('%Y') + '-07-01',
             })
-        self.account_invoice_line_model.create({'product_id': self.product.id,
-            'quantity': 1,
-            'price_unit': invoice_amount,
-            'invoice_id': invoice.id,
-            'name': 'product that cost ' + str(invoice_amount),
-            'account_id': self.env['account.account'].search([('user_type_id', '=', self.env.ref('account.data_account_type_revenue').id)], limit=1).id,
-        })
+        self.account_invoice_line_model.create(
+            {
+                'product_id': self.product.id,
+                'quantity': 1,
+                'price_unit': invoice_amount,
+                'invoice_id': invoice.id,
+                'name': f'product that cost {str(invoice_amount)}',
+                'account_id': self.env['account.account']
+                .search(
+                    [
+                        (
+                            'user_type_id',
+                            '=',
+                            self.env.ref('account.data_account_type_revenue').id,
+                        )
+                    ],
+                    limit=1,
+                )
+                .id,
+            }
+        )
+
 
         #validate invoice
         invoice.action_invoice_open()
         return invoice
 
     def make_payment(self, invoice_record, bank_journal, amount=0.0, amount_currency=0.0, currency_id=None):
-        bank_stmt = self.acc_bank_stmt_model.create({
-            'journal_id': bank_journal.id,
-            'date': time.strftime('%Y') + '-07-15',
-            'name': 'payment' + invoice_record.number
-        })
+        bank_stmt = self.acc_bank_stmt_model.create(
+            {
+                'journal_id': bank_journal.id,
+                'date': time.strftime('%Y') + '-07-15',
+                'name': f'payment{invoice_record.number}',
+            }
+        )
+
 
         bank_stmt_line = self.acc_bank_stmt_line_model.create({'name': 'payment',
             'statement_id': bank_stmt.id,
@@ -99,24 +117,29 @@ class TestReconciliation(AccountingTestCase):
             if 'currency_diff' in aml_dict[move_line.account_id.id]:
                 currency_diff_move = move_line.full_reconcile_id.exchange_move_id
                 for currency_diff_line in currency_diff_move.line_ids:
-                    if aml_dict[move_line.account_id.id].get('currency_diff') == 0:
-                        if currency_diff_line.account_id.id == move_line.account_id.id:
-                            self.assertAlmostEquals(currency_diff_line.amount_currency, aml_dict[move_line.account_id.id].get('amount_currency_diff'))
-                    if aml_dict[move_line.account_id.id].get('currency_diff') == 0:
-                        if currency_diff_line.account_id.id == move_line.account_id.id:
-                            self.assertAlmostEquals(currency_diff_line.amount_currency, aml_dict[move_line.account_id.id].get('amount_currency_diff'))
+                    if (
+                        aml_dict[move_line.account_id.id].get('currency_diff') == 0
+                        and currency_diff_line.account_id.id
+                        == move_line.account_id.id
+                    ):
+                        self.assertAlmostEquals(currency_diff_line.amount_currency, aml_dict[move_line.account_id.id].get('amount_currency_diff'))
+                    if (
+                        aml_dict[move_line.account_id.id].get('currency_diff') == 0
+                        and currency_diff_line.account_id.id
+                        == move_line.account_id.id
+                    ):
+                        self.assertAlmostEquals(currency_diff_line.amount_currency, aml_dict[move_line.account_id.id].get('amount_currency_diff'))
                     if aml_dict[move_line.account_id.id].get('currency_diff') > 0:
                         if currency_diff_line.account_id.id == move_line.account_id.id:
                             self.assertAlmostEquals(currency_diff_line.debit, aml_dict[move_line.account_id.id].get('currency_diff'))
                         else:
                             self.assertAlmostEquals(currency_diff_line.credit, aml_dict[move_line.account_id.id].get('currency_diff'))
                             self.assertIn(currency_diff_line.account_id.id, [self.diff_expense_account.id, self.diff_income_account.id], 'The difference accounts should be used correctly. ')
+                    elif currency_diff_line.account_id.id == move_line.account_id.id:
+                        self.assertAlmostEquals(currency_diff_line.credit, abs(aml_dict[move_line.account_id.id].get('currency_diff')))
                     else:
-                        if currency_diff_line.account_id.id == move_line.account_id.id:
-                            self.assertAlmostEquals(currency_diff_line.credit, abs(aml_dict[move_line.account_id.id].get('currency_diff')))
-                        else:
-                            self.assertAlmostEquals(currency_diff_line.debit, abs(aml_dict[move_line.account_id.id].get('currency_diff')))
-                            self.assertIn(currency_diff_line.account_id.id, [self.diff_expense_account.id, self.diff_income_account.id], 'The difference accounts should be used correctly. ')
+                        self.assertAlmostEquals(currency_diff_line.debit, abs(aml_dict[move_line.account_id.id].get('currency_diff')))
+                        self.assertIn(currency_diff_line.account_id.id, [self.diff_expense_account.id, self.diff_income_account.id], 'The difference accounts should be used correctly. ')
 
     def make_customer_and_supplier_flows(self, invoice_currency_id, invoice_amount, bank_journal, amount, amount_currency, transaction_currency_id):
         #we create an invoice in given invoice_currency
@@ -304,12 +327,15 @@ class TestReconciliation(AccountingTestCase):
             ]
         })
 
-        # We process the reconciliation of the invoice line with the two bank statement lines
-        line_id = None
-        for l in invoice.move_id.line_id:
-            if l.account_id.id == self.account_rcv_id:
-                line_id = l
-                break
+        line_id = next(
+            (
+                l
+                for l in invoice.move_id.line_id
+                if l.account_id.id == self.account_rcv_id
+            ),
+            None,
+        )
+
         for statement_line in statement.line_ids:
             statement_line.process_reconciliation([
                 {'counterpart_move_line_id': line_id.id, 'credit': 1.0, 'debit': 0.0, 'name': line_id.name}
@@ -336,8 +362,8 @@ class TestReconciliation(AccountingTestCase):
         self.assertTrue(exchange_loss_line, 'There should be one move line of 0.01 EUR in credit')
         # The journal items of the reconciliation should have their debit and credit total equal
         # Besides, the total debit and total credit should be 60.61 EUR (2.00 USD)
-        self.assertEquals(sum([res['debit'] for res in result.values()]), 60.61)
-        self.assertEquals(sum([res['credit'] for res in result.values()]), 60.61)
+        self.assertEquals(sum(res['debit'] for res in result.values()), 60.61)
+        self.assertEquals(sum(res['credit'] for res in result.values()), 60.61)
         counterpart_exchange_loss_line = None
         for line in exchange_loss_line.move_id.line_id:
             if line.account_id.id == self.account_fx_expense_id:

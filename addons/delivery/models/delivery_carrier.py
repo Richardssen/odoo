@@ -111,8 +111,7 @@ class DeliveryCarrier(models.Model):
         self.available = False
         self.price = False
 
-        order_id = self.env.context.get('order_id')
-        if order_id:
+        if order_id := self.env.context.get('order_id'):
             # FIXME: temporary hack until we refactor the delivery API in master
 
             order = SaleOrder.browse(order_id)
@@ -124,18 +123,16 @@ class DeliveryCarrier(models.Model):
                     # No suitable delivery method found, probably configuration error
                     _logger.info("Carrier %s: %s, not found", self.name, e.name)
                     computed_price = 0.0
-            else:
-                carrier = self.verify_carrier(order.partner_shipping_id)
-                if carrier:
-                    try:
-                        computed_price = carrier.get_price_available(order)
-                        self.available = True
-                    except UserError as e:
-                        # No suitable delivery method found, probably configuration error
-                        _logger.info("Carrier %s: %s", carrier.name, e.name)
-                        computed_price = 0.0
-                else:
+            elif carrier := self.verify_carrier(order.partner_shipping_id):
+                try:
+                    computed_price = carrier.get_price_available(order)
+                    self.available = True
+                except UserError as e:
+                    # No suitable delivery method found, probably configuration error
+                    _logger.info("Carrier %s: %s", carrier.name, e.name)
                     computed_price = 0.0
+            else:
+                computed_price = 0.0
 
             self.price = computed_price * (1.0 + (float(self.margin) / 100.0))
 
@@ -152,8 +149,10 @@ class DeliveryCarrier(models.Model):
         :return list: A list of floats, containing the estimated price for the shipping of the sale order
         '''
         self.ensure_one()
-        if hasattr(self, '%s_get_shipping_price_from_so' % self.delivery_type):
-            return getattr(self, '%s_get_shipping_price_from_so' % self.delivery_type)(orders)
+        if hasattr(self, f'{self.delivery_type}_get_shipping_price_from_so'):
+            return getattr(
+                self, f'{self.delivery_type}_get_shipping_price_from_so'
+            )(orders)
 
     def send_shipping(self, pickings):
         ''' Send the package to the service provider
@@ -164,8 +163,8 @@ class DeliveryCarrier(models.Model):
                            'tracking_number': number }
         '''
         self.ensure_one()
-        if hasattr(self, '%s_send_shipping' % self.delivery_type):
-            return getattr(self, '%s_send_shipping' % self.delivery_type)(pickings)
+        if hasattr(self, f'{self.delivery_type}_send_shipping'):
+            return getattr(self, f'{self.delivery_type}_send_shipping')(pickings)
 
     def get_tracking_link(self, pickings):
         ''' Ask the tracking link to the service provider
@@ -174,8 +173,8 @@ class DeliveryCarrier(models.Model):
         :return list: A list of string URLs, containing the tracking links for every picking
         '''
         self.ensure_one()
-        if hasattr(self, '%s_get_tracking_link' % self.delivery_type):
-            return getattr(self, '%s_get_tracking_link' % self.delivery_type)(pickings)
+        if hasattr(self, f'{self.delivery_type}_get_tracking_link'):
+            return getattr(self, f'{self.delivery_type}_get_tracking_link')(pickings)
 
     def cancel_shipment(self, pickings):
         ''' Cancel a shipment
@@ -183,8 +182,8 @@ class DeliveryCarrier(models.Model):
         :param pickings: A recordset of pickings
         '''
         self.ensure_one()
-        if hasattr(self, '%s_cancel_shipment' % self.delivery_type):
-            return getattr(self, '%s_cancel_shipment' % self.delivery_type)(pickings)
+        if hasattr(self, f'{self.delivery_type}_cancel_shipment'):
+            return getattr(self, f'{self.delivery_type}_cancel_shipment')(pickings)
 
     @api.onchange('state_ids')
     def onchange_states(self):
@@ -215,10 +214,6 @@ class DeliveryCarrier(models.Model):
             if record.delivery_type == 'base_on_rule':
                 continue
 
-            # Not using advanced pricing per destination: override lines
-            if record.delivery_type == 'base_on_rule' and not (record.fixed_price is not False or record.free_if_more_than):
-                record.price_rule_ids.unlink()
-
             # Check that float, else 0.0 is False
             if not (record.fixed_price is not False or record.free_if_more_than):
                 continue
@@ -233,18 +228,20 @@ class DeliveryCarrier(models.Model):
             }
             # Create the delivery price rules
             if record.free_if_more_than:
-                line_data.update({
+                line_data |= {
                     'max_value': record.amount,
                     'standard_price': 0.0,
                     'list_base_price': 0.0,
-                })
+                }
+
                 PriceRule.create(line_data)
             if record.fixed_price is not False:
-                line_data.update({
+                line_data |= {
                     'max_value': 0.0,
                     'standard_price': record.fixed_price,
                     'list_base_price': record.fixed_price,
-                })
+                }
+
                 PriceRule.create(line_data)
         return True
 
@@ -287,8 +284,9 @@ class DeliveryCarrier(models.Model):
         criteria_found = False
         price_dict = {'price': total, 'volume': volume, 'weight': weight, 'wv': volume * weight, 'quantity': quantity}
         for line in self.price_rule_ids:
-            test = safe_eval(line.variable + line.operator + str(line.max_value), price_dict)
-            if test:
+            if test := safe_eval(
+                line.variable + line.operator + str(line.max_value), price_dict
+            ):
                 price = line.list_base_price + line.list_price * price_dict[line.variable_factor]
                 criteria_found = True
                 break

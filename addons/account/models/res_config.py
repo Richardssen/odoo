@@ -149,7 +149,7 @@ class AccountConfigSettings(models.TransientModel):
     @api.model
     def _default_has_default_company(self):
         count = self.env['res.company'].search_count([])
-        return bool(count == 1)
+        return count == 1
 
 
     @api.onchange('company_id')

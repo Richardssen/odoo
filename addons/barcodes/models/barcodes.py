@@ -56,11 +56,16 @@ class BarcodeNomenclature(models.Model):
     # returns true if the barcode string is encoded with the provided encoding.
     def check_encoding(self, barcode, encoding):
         if encoding == 'ean13':
-            return len(barcode) == 13 and re.match("^\d+$", barcode) and self.ean_checksum(barcode) == int(barcode[-1]) 
+            return len(barcode) == 13 and re.match("^\d+$", barcode) and self.ean_checksum(barcode) == int(barcode[-1])
         elif encoding == 'ean8':
             return len(barcode) == 8 and re.match("^\d+$", barcode) and self.ean8_checksum(barcode) == int(barcode[-1])
         elif encoding == 'upca':
-            return len(barcode) == 12 and re.match("^\d+$", barcode) and self.ean_checksum("0"+barcode) == int(barcode[-1])
+            return (
+                len(barcode) == 12
+                and re.match("^\d+$", barcode)
+                and self.ean_checksum(f"0{barcode}") == int(barcode[-1])
+            )
+
         elif encoding == 'any':
             return True
         else:
@@ -69,13 +74,13 @@ class BarcodeNomenclature(models.Model):
 
     # Returns a valid zero padded ean13 from an ean prefix. the ean prefix must be a string.
     def sanitize_ean(self, ean):
-        ean = ean[0:13]
+        ean = ean[:13]
         ean = ean + (13-len(ean))*'0'
-        return ean[0:12] + str(self.ean_checksum(ean))
+        return ean[:12] + str(self.ean_checksum(ean))
 
     # Returns a valid zero padded UPC-A from a UPC-A prefix. the UPC-A prefix must be a string.
     def sanitize_upc(self, upc):
-        return self.sanitize_ean('0'+upc)[1:]
+        return self.sanitize_ean(f'0{upc}')[1:]
 
     # Checks if barcode matches the pattern
     # Additionaly retrieves the optional numerical content in barcode
@@ -91,9 +96,7 @@ class BarcodeNomenclature(models.Model):
         }
 
         barcode = barcode.replace("\\", "\\\\").replace("{", '\{').replace("}", "\}").replace(".", "\.")
-        numerical_content = re.search("[{][N]*[D]*[}]", pattern) # look for numerical content in pattern
-
-        if numerical_content: # the pattern encodes a numerical content
+        if numerical_content := re.search("[{][N]*[D]*[}]", pattern):
             num_start = numerical_content.start() # start index of numerical content
             num_end = numerical_content.end() # end index of numerical content
             value_string = barcode[num_start:num_end-2] # numerical content in barcode
@@ -101,7 +104,8 @@ class BarcodeNomenclature(models.Model):
             whole_part_match = re.search("[{][N]*[D}]", numerical_content.group()) # looks for whole part of numerical content
             decimal_part_match = re.search("[{N][D]*[}]", numerical_content.group()) # looks for decimal part
             whole_part = value_string[:whole_part_match.end()-2] # retrieve whole part of numerical content in barcode
-            decimal_part = "0." + value_string[decimal_part_match.start():decimal_part_match.end()-1] # retrieve decimal part
+            decimal_part = f"0.{value_string[decimal_part_match.start():decimal_part_match.end()-1]}"
+
             if whole_part == '':
                 whole_part = '0'
             match['value'] = int(whole_part) + float(decimal_part)
@@ -131,14 +135,21 @@ class BarcodeNomenclature(models.Model):
             'value': 0,
         }
 
-        rules = []
-        for rule in self.rule_ids:
-            rules.append({'type': rule.type, 'encoding': rule.encoding, 'sequence': rule.sequence, 'pattern': rule.pattern, 'alias': rule.alias})
+        rules = [
+            {
+                'type': rule.type,
+                'encoding': rule.encoding,
+                'sequence': rule.sequence,
+                'pattern': rule.pattern,
+                'alias': rule.alias,
+            }
+            for rule in self.rule_ids
+        ]
 
         for rule in rules:
             cur_barcode = barcode
             if rule['encoding'] == 'ean13' and self.check_encoding(barcode,'upca') and self.upc_ean_conv in ['upc2ean','always']:
-                cur_barcode = '0'+cur_barcode
+                cur_barcode = f'0{cur_barcode}'
             elif rule['encoding'] == 'upca' and self.check_encoding(barcode,'ean13') and barcode[0] == '0' and self.upc_ean_conv in ['ean2upc','always']:
                 cur_barcode = cur_barcode[1:]
 

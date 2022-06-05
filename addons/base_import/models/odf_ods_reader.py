@@ -68,25 +68,22 @@ class ODSReader(object):
                         if n.nodeType == 1 and n.tagName == "text:span":
                             for c in n.childNodes:
                                 if c.nodeType == 3:
-                                    textContent = u'{}{}'.format(textContent, n.data)
+                                    textContent = f'{textContent}{n.data}'
 
                         if n.nodeType == 3:
-                            textContent = u'{}{}'.format(textContent, n.data)
+                            textContent = f'{textContent}{n.data}'
 
                 if textContent:
                     if not textContent.startswith("#"):  # ignore comments cells
-                        for rr in range(int(repeat)):  # repeated?
-                            arrCells.append(textContent)
+                        arrCells.extend(textContent for _ in range(int(repeat)))
                 else:
-                    for rr in range(int(repeat)):
-                        arrCells.append("")
-
+                    arrCells.extend("" for _ in range(int(repeat)))
             # if row contained something
             if arrCells:
                 arrRows.append(arrCells)
 
-            #else:
-            #    print ("Empty or commented row (", row_comment, ")")
+                #else:
+                #    print ("Empty or commented row (", row_comment, ")")
 
         self.SHEETS[name] = arrRows
 

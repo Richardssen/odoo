@@ -3,7 +3,7 @@ from odoo import fields, models
 
 
 def name(suffix_name):
-    return 'base_import.tests.models.%s' % suffix_name
+    return f'base_import.tests.models.{suffix_name}'
 
 
 class Char(models.Model):

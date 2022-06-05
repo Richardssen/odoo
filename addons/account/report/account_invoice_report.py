@@ -92,7 +92,7 @@ class AccountInvoiceReport(models.Model):
     }
 
     def _select(self):
-        select_str = """
+        return """
             SELECT sub.id, sub.date, sub.product_id, sub.partner_id, sub.country_id, sub.account_analytic_id,
                 sub.payment_term_id, sub.uom_name, sub.currency_id, sub.journal_id,
                 sub.fiscal_position_id, sub.user_id, sub.company_id, sub.nbr, sub.type, sub.state,
@@ -101,10 +101,9 @@ class AccountInvoiceReport(models.Model):
                 sub.product_qty, sub.price_total as price_total, sub.price_average as price_average,
                 COALESCE(cr.rate, 1) as currency_rate, sub.residual as residual, sub.commercial_partner_id as commercial_partner_id
         """
-        return select_str
 
     def _sub_select(self):
-        select_str = """
+        return """
                 SELECT ail.id AS id,
                     ai.date_invoice AS date,
                     ail.product_id, ai.partner_id, ai.payment_term_id, ail.account_analytic_id,
@@ -127,10 +126,9 @@ class AccountInvoiceReport(models.Model):
                     SUM(pr.weight * (invoice_type.sign*ail.quantity) / u.factor * u2.factor) AS weight,
                     SUM(pr.volume * (invoice_type.sign*ail.quantity) / u.factor * u2.factor) AS volume
         """
-        return select_str
 
     def _from(self):
-        from_str = """
+        return """
                 FROM account_invoice_line ail
                 JOIN account_invoice ai ON ai.id = ail.invoice_id
                 JOIN res_partner partner ON ai.commercial_partner_id = partner.id
@@ -148,17 +146,15 @@ class AccountInvoiceReport(models.Model):
                     FROM account_invoice ai
                 ) AS invoice_type ON invoice_type.id = ai.id
         """
-        return from_str
 
     def _group_by(self):
-        group_by_str = """
+        return """
                 GROUP BY ail.id, ail.product_id, ail.account_analytic_id, ai.date_invoice, ai.id,
                     ai.partner_id, ai.payment_term_id, u2.name, u2.id, ai.currency_id, ai.journal_id,
                     ai.fiscal_position_id, ai.user_id, ai.company_id, ai.type, invoice_type.sign, ai.state, pt.categ_id,
                     ai.date_due, ai.account_id, ail.account_id, ai.partner_bank_id, ai.residual_company_signed,
                     ai.amount_total_company_signed, ai.commercial_partner_id, partner.country_id
         """
-        return group_by_str
 
     @api.model_cr
     def init(self):

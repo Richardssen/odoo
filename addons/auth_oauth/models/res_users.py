@@ -26,9 +26,9 @@ class ResUsers(models.Model):
     def _auth_oauth_rpc(self, endpoint, access_token):
         params = werkzeug.url_encode({'access_token': access_token})
         if urlparse.urlparse(endpoint)[4]:
-            url = endpoint + '&' + params
+            url = f'{endpoint}&{params}'
         else:
-            url = endpoint + '?' + params
+            url = f'{endpoint}?{params}'
         f = urllib2.urlopen(url)
         response = f.read()
         return json.loads(response)
@@ -48,7 +48,7 @@ class ResUsers(models.Model):
     @api.model
     def _generate_signup_values(self, provider, validation, params):
         oauth_uid = validation['user_id']
-        email = validation.get('email', 'provider_%s_user_%s' % (provider, oauth_uid))
+        email = validation.get('email', f'provider_{provider}_user_{oauth_uid}')
         name = validation.get('name', email)
         return {
             'name': name,
